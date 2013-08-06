@@ -32,7 +32,7 @@ type Config struct {
 	Vhost                 string     // Broker Vhost
 	Username              string     // Broker username
 	Password              string     // Broker password
-	DisableTLS            bool       // Broker TLS connection
+	EnableTLS             bool       // Broker TLS connection
 	PrefetchCount         int        // How many messages to prefetch
 	EnableMultiAck        bool       // Controls if we allow multi acks
 	DisablePublishConfirm bool       // Disables confirmations of publish
@@ -82,10 +82,10 @@ func New(c *Config) (*Relay, error) {
 		c.Addr = "localhost"
 	}
 	if c.Port == 0 {
-		if c.DisableTLS {
-			c.Port = 5672
-		} else {
+		if c.EnableTLS {
 			c.Port = 5671
+		} else {
+			c.Port = 5672
 		}
 	}
 	if c.Vhost == "" {
@@ -116,10 +116,10 @@ func (r *Relay) getConn() (*amqp.Connection, error) {
 	uri := amqp.URI{Host: conf.Addr, Port: conf.Port,
 		Username: conf.Username, Password: conf.Password,
 		Vhost: conf.Vhost}
-	if conf.DisableTLS {
-		uri.Scheme = "amqp"
-	} else {
+	if conf.EnableTLS {
 		uri.Scheme = "amqps"
+	} else {
+		uri.Scheme = "amqp"
 	}
 	uri_s := uri.String()
 	return amqp.Dial(uri_s)
