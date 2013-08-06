@@ -9,6 +9,7 @@ import (
 	"github.com/streadway/amqp"
 	"io"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -38,6 +39,7 @@ type Config struct {
 }
 
 type Relay struct {
+	sync.Mutex
 	conf     *Config
 	pubConn  *amqp.Connection // Publisher connection.
 	consConn *amqp.Connection // Consumer connection. Avoid TCP backpressure.
@@ -115,6 +117,10 @@ func (r *Relay) getConn() (*amqp.Connection, error) {
 
 // Used to get a new channel, possibly on a cached connection
 func (r *Relay) getChan(conn **amqp.Connection) (*amqp.Channel, error) {
+	// Prevent multiple connection opens
+	r.Lock()
+	defer r.Unlock()
+
 	// Get a connection if none
 	var isNew bool
 	if *conn == nil {
@@ -160,6 +166,10 @@ func (r *Relay) declareQueue(ch *amqp.Channel, name string) error {
 // Close will shutdown the relay. It is best to first Close all the
 // Consumer and Publishers, as this will close the underlying connections.
 func (r *Relay) Close() error {
+	// Prevent multiple connection closes
+	r.Lock()
+	defer r.Unlock()
+
 	var errors []error
 	if r.pubConn != nil {
 		if err := r.pubConn.Close(); err != nil {
