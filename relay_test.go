@@ -321,6 +321,177 @@ func TestCloseRelayInUse(t *testing.T) {
 	wg.Wait()
 }
 
+func TestClosePendingMsg(t *testing.T) {
+	if !IsInteg() {
+		t.SkipNow()
+	}
+
+	conf := Config{Addr: AMQPHost(), PrefetchCount: 5, EnableMultiAck: true, DisablePublishConfirm: true}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a publisher
+	pub, err := r.Publisher("pending-nack")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer pub.Close()
+
+	// Get a consumer
+	cons, err := r.Consumer("pending-nack")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Send a message
+	for i := 0; i < 20; i++ {
+		err = pub.Publish(string(i))
+		if err != nil {
+			t.Fatalf("unexpected err %s", err)
+		}
+	}
+
+	// Try to get the message
+	var in string
+	err = cons.Consume(&in)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Close. Should nack.
+	cons.Close()
+
+	// Get a consumer
+	cons, err = r.Consumer("pending-nack")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Should redeliver
+	for i := 0; i < 20; i++ {
+		err = cons.ConsumeAck(&in)
+		if err != nil {
+			t.Fatalf("unexpected err %s", err)
+		}
+		if in != string(i) {
+			t.Fatalf("unexpected msg! %v %v", in, i)
+		}
+	}
+}
+
+func TestDoubleConsume(t *testing.T) {
+	if !IsInteg() {
+		t.SkipNow()
+	}
+
+	conf := Config{Addr: AMQPHost()}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a publisher
+	pub, err := r.Publisher("double-cons")
+	defer pub.Close()
+
+	// Get a consumer
+	cons, err := r.Consumer("double-cons")
+	defer cons.Close()
+
+	pub.Publish("test")
+	var in string
+	err = cons.Consume(&in)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	err = cons.Consume(&in)
+	if err.Error() != "Ack required before consume!" {
+		t.Fatalf("unexpected err %s", err)
+	}
+}
+
+func TestCloseConsume(t *testing.T) {
+	if !IsInteg() {
+		t.SkipNow()
+	}
+
+	conf := Config{Addr: AMQPHost()}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a consumer
+	cons, err := r.Consumer("double-cons")
+	cons.Close()
+
+	var in string
+	err = cons.Consume(&in)
+	if err != ChannelClosed {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	err = cons.Ack()
+	if err != ChannelClosed {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	err = cons.Nack()
+	if err != ChannelClosed {
+		t.Fatalf("unexpected err %s", err)
+	}
+}
+
+func TestClosePublish(t *testing.T) {
+	if !IsInteg() {
+		t.SkipNow()
+	}
+
+	conf := Config{Addr: AMQPHost()}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a consumer
+	pub, err := r.Publisher("double-cons")
+	pub.Close()
+
+	err = pub.Publish("test")
+	if err != ChannelClosed {
+		t.Fatalf("unexpected err %s", err)
+	}
+}
+
+func TestNoHost(t *testing.T) {
+	// Hopefully no rabbit there....
+	conf := Config{Addr: "127.0.0.1", Port: 1}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Try to get a consumer
+	_, err = r.Consumer("test")
+	if err == nil {
+		t.Fatalf("expected err!")
+	}
+
+	// Try to get a publisher
+	_, err = r.Publisher("test")
+	if err == nil {
+		t.Fatalf("expected err!")
+	}
+}
+
 func TestQueueName(t *testing.T) {
 	if queueName("test") != "relay.test" {
 		t.Fatalf("bad queue name")
