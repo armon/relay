@@ -9,6 +9,7 @@ import (
 	"github.com/streadway/amqp"
 	"io"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -97,7 +98,11 @@ func New(c *Config) (*Relay, error) {
 	if c.Serializer == nil {
 		c.Serializer = &GOBSerializer{}
 	}
-	return &Relay{conf: c}, nil
+
+	// Create relay with finalizer
+	r := &Relay{conf: c}
+	runtime.SetFinalizer(r, (*Relay).Close)
+	return r, nil
 }
 
 // Used to get a new server connection
@@ -228,7 +233,11 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 	}
 
 	// Create a new Consumer
-	return &Consumer{r.conf, consName, name, ch, readCh, 0, false}, nil
+	cons := &Consumer{r.conf, consName, name, ch, readCh, 0, false}
+
+	// Set finalizer to ensure we close the channel
+	runtime.SetFinalizer(cons, (*Consumer).Close)
+	return cons, nil
 }
 
 // Publisher will return a new handle that can be used
@@ -258,8 +267,12 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 	}
 
 	// Create a new Publisher
-	return &Publisher{conf: r.conf, queue: name, channel: ch,
-		contentType: contentType, mode: mode}, nil
+	pub := &Publisher{conf: r.conf, queue: name, channel: ch,
+		contentType: contentType, mode: mode}
+
+	// Set finalizer to ensure we close the channel
+	runtime.SetFinalizer(pub, (*Publisher).Close)
+	return pub, nil
 }
 
 // Consume will consume the next available message. The
