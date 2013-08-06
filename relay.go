@@ -46,7 +46,7 @@ type Relay struct {
 // Publisher is a type that is used only for publishing messages to a single queue.
 // Multiple Publishers can multiplex a single relay
 type Publisher struct {
-	r           *Relay
+	conf        *Config
 	queue       string
 	channel     *amqp.Channel
 	contentType string
@@ -57,7 +57,7 @@ type Publisher struct {
 // Consumer is a type that is used only for consuming messages from a single queue.
 // Multiple Consumers can multiplex a single relay
 type Consumer struct {
-	r           *Relay
+	conf        *Config
 	consName    string
 	queue       string
 	channel     *amqp.Channel
@@ -216,7 +216,7 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 	}
 
 	// Create a new Consumer
-	return &Consumer{r, consName, name, ch, readCh, 0, false}, nil
+	return &Consumer{r.conf, consName, name, ch, readCh, 0, false}, nil
 }
 
 // Publisher will return a new handle that can be used
@@ -246,7 +246,8 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 	}
 
 	// Create a new Publisher
-	return &Publisher{r: r, queue: name, channel: ch, contentType: contentType, mode: mode}, nil
+	return &Publisher{conf: r.conf, queue: name, channel: ch,
+		contentType: contentType, mode: mode}, nil
 }
 
 // Consume will consume the next available message. The
@@ -254,7 +255,7 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 // the next call to Consume unless EnableMultiAck is true.
 func (c *Consumer) Consume(out interface{}) error {
 	// Check if an ack is required
-	if c.needAck && !c.r.conf.EnableMultiAck {
+	if c.needAck && !c.conf.EnableMultiAck {
 		return fmt.Errorf("Ack required before consume!")
 	}
 
@@ -270,7 +271,7 @@ func (c *Consumer) Consume(out interface{}) error {
 
 	// Decode the message
 	buf := bytes.NewBuffer(d.Body)
-	if err := c.r.conf.Serializer.Decode(buf, out); err != nil {
+	if err := c.conf.Serializer.Decode(buf, out); err != nil {
 		return fmt.Errorf("Failed to decode message! Got: %s", err)
 	}
 	return nil
@@ -296,7 +297,7 @@ func (c *Consumer) Ack() error {
 	if !c.needAck {
 		fmt.Errorf("Ack is not required!")
 	}
-	if err := c.channel.Ack(c.lastMsg, c.r.conf.EnableMultiAck); err != nil {
+	if err := c.channel.Ack(c.lastMsg, c.conf.EnableMultiAck); err != nil {
 		return err
 	}
 	c.needAck = false
@@ -312,7 +313,7 @@ func (c *Consumer) Nack() error {
 		fmt.Errorf("Nack is not required!")
 	}
 	if err := c.channel.Nack(c.lastMsg,
-		c.r.conf.EnableMultiAck, true); err != nil {
+		c.conf.EnableMultiAck, true); err != nil {
 		return err
 	}
 	c.needAck = false
@@ -353,7 +354,7 @@ func (c *Consumer) Close() error {
 // Publish will send the message to the server to be consumed
 func (p *Publisher) Publish(in interface{}) error {
 	// Encode the message
-	conf := p.r.conf
+	conf := p.conf
 	buf := &p.buf
 	buf.Reset()
 	if err := conf.Serializer.Encode(buf, in); err != nil {
