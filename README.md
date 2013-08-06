@@ -1,11 +1,27 @@
 relay
 =====
 
-Golang framework for simple message passing using an AMQP broker
+Relay is a Go framework for task queues, and makes writing code for publishers
+and consumers very simple. It is a wrapper around the AMQP protocol, and relies
+on a message broker like RabbitMQ.
+
+The reason Relay exists is that AMQP is a tedious protocol to deal with, and the
+high level abstraction of a task queue is often something that is desirable. With
+Relay, you simply Publish objects into task queues, and Consume them on the other end.
+
+# Features
+
+* Simple to use, hides the AMQP details
+* Flexible encoding and decoding support
+* Configuration changes instead of code changes
+
+# Documentation
+
+See the online documentation here: [http://godoc.org/github.com/armon/relay](http://godoc.org/github.com/armon/relay).
 
 # Example
 
-Here is an example of a new publisher:
+Here is an example of a simple publisher:
 
     conf := &relay.Config{Addr: "rabbitmq"}
     conn, err := relay.New(conf)
@@ -13,10 +29,11 @@ Here is an example of a new publisher:
 
     pub, err := conn.Publisher("tasks")
     defer pub.Close()
+
     pub.Publish("this is a test message")
 
 
-Here is an example of a new consumer:
+Here is an example of a simple consumer:
 
     conf := &relay.Config{Addr: "rabbitmq"}
     conn, err := relay.New(conf)
@@ -27,9 +44,8 @@ Here is an example of a new consumer:
 
     var msg string
     for {
-        cons.Consume(&msg)
+        cons.ConsumeAck(&msg)
         fmt.Printf("Got msg: %s\n", msg)
-        cons.Ack()
     }
 
 Here is an example of a consumer using prefetching and multi Acks:
