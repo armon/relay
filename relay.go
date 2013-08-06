@@ -74,6 +74,9 @@ type Consumer struct {
 	needAck     bool
 }
 
+// Returned to indicate a closed channel
+var ChannelClosed = fmt.Errorf("Channel closed!")
+
 // New will create a new Relay that can be used to create
 // new publishers or consumers.
 func New(c *Config) (*Relay, error) {
@@ -328,7 +331,7 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 func (c *Consumer) Consume(out interface{}) error {
 	// Check if we are closed
 	if c.channel == nil {
-		return fmt.Errorf("Consumer is closed")
+		return ChannelClosed
 	}
 
 	// Check if an ack is required
@@ -339,7 +342,7 @@ func (c *Consumer) Consume(out interface{}) error {
 	// Wait for a message
 	d, ok := <-c.deliverChan
 	if !ok {
-		return fmt.Errorf("The channel has been closed!")
+		return ChannelClosed
 	}
 
 	// Store the delivery tag for future Ack
@@ -372,7 +375,7 @@ func (c *Consumer) ConsumeAck(out interface{}) error {
 // be acknowledged
 func (c *Consumer) Ack() error {
 	if c.channel == nil {
-		return fmt.Errorf("Consumer is closed")
+		return ChannelClosed
 	}
 	if !c.needAck {
 		fmt.Errorf("Ack is not required!")
@@ -390,7 +393,7 @@ func (c *Consumer) Ack() error {
 // the last consumed one will be negatively acknowledged
 func (c *Consumer) Nack() error {
 	if c.channel == nil {
-		return fmt.Errorf("Consumer is closed")
+		return ChannelClosed
 	}
 	if !c.needAck {
 		fmt.Errorf("Nack is not required!")
@@ -446,7 +449,7 @@ func (c *Consumer) Close() error {
 func (p *Publisher) Publish(in interface{}) error {
 	// Check for close
 	if p.channel == nil {
-		return fmt.Errorf("Publisher is closed")
+		return ChannelClosed
 	}
 
 	// Encode the message
@@ -473,11 +476,20 @@ func (p *Publisher) Publish(in interface{}) error {
 	// Check if we wait for confirmation
 	if !p.conf.DisablePublishConfirm {
 		select {
-		case <-p.ackCh:
+		case _, ok := <-p.ackCh:
+			if !ok {
+				return ChannelClosed
+			}
 			return nil
-		case <-p.nackCh:
+		case _, ok := <-p.nackCh:
+			if !ok {
+				return ChannelClosed
+			}
 			return fmt.Errorf("Failed to publish to '%s'! Got negative ack.", p.queue)
-		case err := <-p.errCh:
+		case err, ok := <-p.errCh:
+			if !ok {
+				return ChannelClosed
+			}
 			log.Printf("[ERR] Publisher got error: (Code %d Server: %v Recoverable: %v) %s",
 				err.Code, err.Server, err.Recover, err.Reason)
 			return fmt.Errorf("Failed to publish to '%s'! Got: %s", err.Error())

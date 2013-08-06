@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 )
@@ -245,6 +246,79 @@ func TestMultiConsume(t *testing.T) {
 			t.Fatalf("unexpected msg! %v %v", in, i)
 		}
 	}
+}
+
+func TestCloseRelayInUse(t *testing.T) {
+	if !IsInteg() {
+		t.SkipNow()
+	}
+
+	conf := Config{Addr: AMQPHost()}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a publisher
+	pub, err := r.Publisher("close-in-use")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer pub.Close()
+
+	// Get a consumer
+	cons, err := r.Consumer("close-in-use")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer cons.Close()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(3)
+
+	// Send a message
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			err := pub.Publish(string(i))
+			if err == ChannelClosed {
+				break
+			}
+			if err != nil {
+				t.Fatalf("unexpected err %s", err)
+			}
+		}
+	}()
+
+	// Should redeliver
+	go func() {
+		defer wg.Done()
+		var in string
+		for i := 0; i < 100; i++ {
+			err := cons.ConsumeAck(&in)
+			if err == ChannelClosed {
+				break
+			}
+			if err != nil {
+				t.Fatalf("unexpected err %s", err)
+			}
+			if in != string(i) {
+				t.Fatalf("unexpected msg! %v %v", in, i)
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		time.Sleep(time.Millisecond)
+		err := r.Close()
+		if err != nil {
+			t.Fatalf("unexpected err %s", err)
+		}
+	}()
+
+	wg.Wait()
 }
 
 func TestQueueName(t *testing.T) {
