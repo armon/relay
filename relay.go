@@ -279,6 +279,11 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 // message must be acknowledged with Ack() or Nack() before
 // the next call to Consume unless EnableMultiAck is true.
 func (c *Consumer) Consume(out interface{}) error {
+	// Check if we are closed
+	if c.channel == nil {
+		return fmt.Errorf("Consumer is closed")
+	}
+
 	// Check if an ack is required
 	if c.needAck && !c.conf.EnableMultiAck {
 		return fmt.Errorf("Ack required before consume!")
@@ -319,6 +324,9 @@ func (c *Consumer) ConsumeAck(out interface{}) error {
 // last message returned by Consume was processed. If EnableMultiAck is true, then all messages up to the last consumed one will
 // be acknowledged
 func (c *Consumer) Ack() error {
+	if c.channel == nil {
+		return fmt.Errorf("Consumer is closed")
+	}
 	if !c.needAck {
 		fmt.Errorf("Ack is not required!")
 	}
@@ -334,6 +342,9 @@ func (c *Consumer) Ack() error {
 // redelivered. If EnableMultiAck is true, then all messages up to
 // the last consumed one will be negatively acknowledged
 func (c *Consumer) Nack() error {
+	if c.channel == nil {
+		return fmt.Errorf("Consumer is closed")
+	}
 	if !c.needAck {
 		fmt.Errorf("Nack is not required!")
 	}
@@ -348,6 +359,14 @@ func (c *Consumer) Nack() error {
 // Close will shutdown the Consumer. Any messages that are still
 // in flight will be Nack'ed.
 func (c *Consumer) Close() error {
+	// Make sure close is idempotent
+	if c.channel == nil {
+		return nil
+	}
+	defer func() {
+		c.channel = nil
+	}()
+
 	// Stop consuming inputs
 	if err := c.channel.Cancel(c.consName, false); err != nil {
 		return fmt.Errorf("Failed to stop consuming! Got: %s", err)
@@ -378,6 +397,11 @@ func (c *Consumer) Close() error {
 
 // Publish will send the message to the server to be consumed
 func (p *Publisher) Publish(in interface{}) error {
+	// Check for close
+	if p.channel == nil {
+		return fmt.Errorf("Publisher is closed")
+	}
+
 	// Encode the message
 	conf := p.conf
 	buf := &p.buf
@@ -403,6 +427,13 @@ func (p *Publisher) Publish(in interface{}) error {
 
 // Close will shutdown the publisher
 func (p *Publisher) Close() error {
+	// Make sure close is idempotent
+	if p.channel == nil {
+		return nil
+	}
+	defer func() {
+		p.channel = nil
+	}()
 	return p.channel.Close()
 }
 
