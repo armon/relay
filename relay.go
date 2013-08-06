@@ -27,18 +27,18 @@ type Serializer interface {
 // Config is passed into New when creating a Relay to tune
 // various parameters around broker interactions.
 type Config struct {
-	Addr               string     // Host address to dial
-	Port               int        // Host por to bind
-	Vhost              string     // Broker Vhost
-	Username           string     // Broker username
-	Password           string     // Broker password
-	DisableTLS         bool       // Broker TLS connection
-	PrefetchCount      int        // How many messages to prefetch
-	EnableMultiAck     bool       // Controls if we allow multi acks
-	ConfirmPublish     bool       // Enables confirmations of publish
-	DisablePersistence bool       // Disables persistence
-	Exchange           string     // Custom exchange if doing override
-	Serializer         Serializer // Used to encode messages
+	Addr                  string     // Host address to dial
+	Port                  int        // Host por to bind
+	Vhost                 string     // Broker Vhost
+	Username              string     // Broker username
+	Password              string     // Broker password
+	DisableTLS            bool       // Broker TLS connection
+	PrefetchCount         int        // How many messages to prefetch
+	EnableMultiAck        bool       // Controls if we allow multi acks
+	DisablePublishConfirm bool       // Enables confirmations of publish
+	DisablePersistence    bool       // Disables persistence
+	Exchange              string     // Custom exchange if doing override
+	Serializer            Serializer // Used to encode messages
 }
 
 type Relay struct {
@@ -306,7 +306,7 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 		contentType: contentType, mode: mode}
 
 	// Check if we need confirmations
-	if r.conf.ConfirmPublish {
+	if !r.conf.DisablePublishConfirm {
 		errCh := ch.NotifyClose(make(chan *amqp.Error, 1))
 		ackCh, nackCh := ch.NotifyConfirm(make(chan uint64, 1), make(chan uint64, 1))
 		if err := ch.Confirm(false); err != nil {
@@ -471,7 +471,7 @@ func (p *Publisher) Publish(in interface{}) error {
 	}
 
 	// Check if we wait for confirmation
-	if p.conf.ConfirmPublish {
+	if !p.conf.DisablePublishConfirm {
 		select {
 		case <-p.ackCh:
 			return nil
