@@ -35,10 +35,10 @@ type Config struct {
 	DisableTLS            bool       // Broker TLS connection
 	PrefetchCount         int        // How many messages to prefetch
 	EnableMultiAck        bool       // Controls if we allow multi acks
-	DisablePublishConfirm bool       // Enables confirmations of publish
-	DisablePersistence    bool       // Disables persistence
-	Exchange              string     // Custom exchange if doing override
-	Serializer            Serializer // Used to encode messages
+	DisablePublishConfirm bool       // Disables confirmations of publish
+	DisablePersistence    bool       // Disables message persistence
+	Exchange              string     // Custom exchange. Defaults to "relay"
+	Serializer            Serializer // Defaults to GOBSerializer
 }
 
 type Relay struct {
