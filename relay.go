@@ -165,11 +165,13 @@ func (r *Relay) Close() error {
 		if err := r.pubConn.Close(); err != nil {
 			errors = append(errors, err)
 		}
+		r.pubConn = nil
 	}
 	if r.consConn != nil {
 		if err := r.consConn.Close(); err != nil {
 			errors = append(errors, err)
 		}
+		r.consConn = nil
 	}
 	switch len(errors) {
 	case 1:
