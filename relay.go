@@ -35,6 +35,7 @@ type Config struct {
 	DisableTLS         bool       // Broker TLS connection
 	PrefetchCount      int        // How many messages to prefetch
 	EnableMultiAck     bool       // Controls if we allow multi acks
+	ConfirmPublish     bool       // Enables confirmations of publish
 	DisablePersistence bool       // Disables persistence
 	Exchange           string     // Custom exchange if doing override
 	Serializer         Serializer // Used to encode messages
@@ -56,6 +57,9 @@ type Publisher struct {
 	contentType string
 	mode        uint8
 	buf         bytes.Buffer
+	ackCh       chan uint64
+	nackCh      chan uint64
+	errCh       chan *amqp.Error
 }
 
 // Consumer is a type that is used only for consuming messages from a single queue.
@@ -301,6 +305,18 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 	pub := &Publisher{conf: r.conf, queue: name, channel: ch,
 		contentType: contentType, mode: mode}
 
+	// Check if we need confirmations
+	if r.conf.ConfirmPublish {
+		errCh := ch.NotifyClose(make(chan *amqp.Error, 1))
+		ackCh, nackCh := ch.NotifyConfirm(make(chan uint64, 1), make(chan uint64, 1))
+		if err := ch.Confirm(false); err != nil {
+			return nil, fmt.Errorf("Failed to put publisher in confirm mode! Got: %s", err)
+		}
+
+		// Attach the channels
+		pub.ackCh, pub.nackCh, pub.errCh = ackCh, nackCh, errCh
+	}
+
 	// Set finalizer to ensure we close the channel
 	runtime.SetFinalizer(pub, (*Publisher).Close)
 	return pub, nil
@@ -452,6 +468,20 @@ func (p *Publisher) Publish(in interface{}) error {
 	// Publish the message
 	if err := p.channel.Publish(conf.Exchange, p.queue, false, false, msg); err != nil {
 		return fmt.Errorf("Failed to publish to '%s'! Got: %s", p.queue, err)
+	}
+
+	// Check if we wait for confirmation
+	if p.conf.ConfirmPublish {
+		select {
+		case <-p.ackCh:
+			return nil
+		case <-p.nackCh:
+			return fmt.Errorf("Failed to publish to '%s'! Got negative ack.", p.queue)
+		case err := <-p.errCh:
+			log.Printf("[ERR] Publisher got error: (Code %d Server: %v Recoverable: %v) %s",
+				err.Code, err.Server, err.Recover, err.Reason)
+			return fmt.Errorf("Failed to publish to '%s'! Got: %s", err.Error())
+		}
 	}
 	return nil
 }
