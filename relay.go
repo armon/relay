@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"io"
+	"log"
 	"os"
 	"runtime"
 	"sync"
@@ -120,6 +121,31 @@ func (r *Relay) getConn() (*amqp.Connection, error) {
 	return amqp.Dial(uri_s)
 }
 
+// Watches for connection errors and closes the connection
+func (r *Relay) watchConn(conn **amqp.Connection, errCh chan *amqp.Error) {
+	for {
+		// Wait for an error
+		err, ok := <-errCh
+		if !ok {
+			break
+		}
+
+		// Log the error
+		log.Printf("[ERR] Relay got error: (Code %d Server: %v Recoverable: %v) %s",
+			err.Code, err.Server, err.Recover, err.Reason)
+
+		// If this is not recoverable, close the connection
+		if !err.Recover {
+			break
+		}
+	}
+
+	// Unset the connection
+	r.Lock()
+	defer r.Unlock()
+	*conn = nil
+}
+
 // Used to get a new channel, possibly on a cached connection
 func (r *Relay) getChan(conn **amqp.Connection) (*amqp.Channel, error) {
 	// Prevent multiple connection opens
@@ -135,6 +161,11 @@ func (r *Relay) getChan(conn **amqp.Connection) (*amqp.Channel, error) {
 		}
 		*conn = newConn
 		isNew = true
+
+		// Watch for connection errors
+		errCh := make(chan *amqp.Error)
+		newConn.NotifyClose(errCh)
+		go r.watchConn(conn, errCh)
 	}
 
 	// Get a channel
