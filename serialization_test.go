@@ -24,13 +24,13 @@ func TestGOBSerializer(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Encode the struct
-	if err := g.Encode(&buf, &obj); err != nil {
+	if err := g.RelayEncode(&buf, &obj); err != nil {
 		t.Fatalf("unexpected err %s", err)
 	}
 
 	// Try to decode
 	out := basic{}
-	if err := g.Decode(&buf, &out); err != nil {
+	if err := g.RelayDecode(&buf, &out); err != nil {
 		t.Fatalf("unexpected err %s", err)
 	}
 
