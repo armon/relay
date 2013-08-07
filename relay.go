@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"log"
-	"runtime"
 	"sync"
 )
 
@@ -69,7 +68,6 @@ func New(c *Config) (*Relay, error) {
 
 	// Create relay with finalizer
 	r := &Relay{conf: c}
-	runtime.SetFinalizer(r, (*Relay).Close)
 	return r, nil
 }
 
@@ -232,9 +230,6 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 
 	// Create a new Consumer
 	cons := &Consumer{r.conf, consName, name, ch, readCh, 0, false}
-
-	// Set finalizer to ensure we close the channel
-	runtime.SetFinalizer(cons, (*Consumer).Close)
 	return cons, nil
 }
 
@@ -280,7 +275,5 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 		pub.ackCh, pub.nackCh, pub.errCh = ackCh, nackCh, errCh
 	}
 
-	// Set finalizer to ensure we close the channel
-	runtime.SetFinalizer(pub, (*Publisher).Close)
 	return pub, nil
 }
