@@ -1,16 +1,16 @@
 package relay
 
 import (
-	"bytes"
 	"os"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
 )
 
-func IsInteg() bool {
-	return os.Getenv("INTEG_TESTS") == "true" && AMQPHost() != ""
+func CheckInteg(t *testing.T) {
+	if os.Getenv("INTEG_TESTS") != "true" || AMQPHost() != "" {
+		t.SkipNow()
+	}
 }
 
 func AMQPHost() string {
@@ -59,9 +59,7 @@ func testSendRecv(t *testing.T, r *Relay) {
 }
 
 func TestSimplePublishConsume(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
@@ -74,9 +72,7 @@ func TestSimplePublishConsume(t *testing.T) {
 }
 
 func TestPublishNoConfirm(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost(), DisablePublishConfirm: true}
 	r, err := New(&conf)
@@ -89,9 +85,7 @@ func TestPublishNoConfirm(t *testing.T) {
 }
 
 func TestPublishNoPersist(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost(), DisablePersistence: true}
 	r, err := New(&conf)
@@ -104,9 +98,7 @@ func TestPublishNoPersist(t *testing.T) {
 }
 
 func TestCustomExchange(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost(), Exchange: "my-exchange"}
 	r, err := New(&conf)
@@ -119,9 +111,7 @@ func TestCustomExchange(t *testing.T) {
 }
 
 func TestRelayMultiClose(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
@@ -137,9 +127,7 @@ func TestRelayMultiClose(t *testing.T) {
 }
 
 func TestConsumerMultiClose(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
@@ -161,9 +149,7 @@ func TestConsumerMultiClose(t *testing.T) {
 }
 
 func TestPublisherMultiClose(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
@@ -185,9 +171,7 @@ func TestPublisherMultiClose(t *testing.T) {
 }
 
 func TestMultiConsume(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost(), PrefetchCount: 5, EnableMultiAck: true}
 	r, err := New(&conf)
@@ -249,9 +233,7 @@ func TestMultiConsume(t *testing.T) {
 }
 
 func TestCloseRelayInUse(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
@@ -322,9 +304,7 @@ func TestCloseRelayInUse(t *testing.T) {
 }
 
 func TestClosePendingMsg(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost(), PrefetchCount: 5, EnableMultiAck: true, DisablePublishConfirm: true}
 	r, err := New(&conf)
@@ -383,9 +363,7 @@ func TestClosePendingMsg(t *testing.T) {
 }
 
 func TestDoubleConsume(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
@@ -416,9 +394,7 @@ func TestDoubleConsume(t *testing.T) {
 }
 
 func TestCloseConsume(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
@@ -449,9 +425,7 @@ func TestCloseConsume(t *testing.T) {
 }
 
 func TestClosePublish(t *testing.T) {
-	if !IsInteg() {
-		t.SkipNow()
-	}
+	CheckInteg(t)
 
 	conf := Config{Addr: AMQPHost()}
 	r, err := New(&conf)
