@@ -36,7 +36,9 @@ type Relay struct {
 var ChannelClosed = fmt.Errorf("Channel closed!")
 
 // New will create a new Relay that can be used to create
-// new publishers or consumers.
+// new publishers or consumers. The caller should no longer modify
+// the configuration once New is invoked, nor should it be
+// shared between multiple relays.
 func New(c *Config) (*Relay, error) {
 	// Set the defaults if missing
 	if c.Addr == "" {
