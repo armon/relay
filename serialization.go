@@ -10,8 +10,8 @@ import (
 // using gob is provided.
 type Serializer interface {
 	ContentType() string
-	Encode(io.Writer, interface{}) error
-	Decode(io.Reader, interface{}) error
+	RelayEncode(io.Writer, interface{}) error
+	RelayDecode(io.Reader, interface{}) error
 }
 
 // GOBSerializer implements the Serializer interface and uses the GOB format
@@ -20,11 +20,11 @@ type GOBSerializer struct{}
 func (*GOBSerializer) ContentType() string {
 	return "binary/gob"
 }
-func (*GOBSerializer) Encode(w io.Writer, e interface{}) error {
+func (*GOBSerializer) RelayEncode(w io.Writer, e interface{}) error {
 	enc := gob.NewEncoder(w)
 	return enc.Encode(e)
 }
-func (*GOBSerializer) Decode(r io.Reader, o interface{}) error {
+func (*GOBSerializer) RelayDecode(r io.Reader, o interface{}) error {
 	dec := gob.NewDecoder(r)
 	return dec.Decode(o)
 }

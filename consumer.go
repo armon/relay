@@ -44,7 +44,7 @@ func (c *Consumer) Consume(out interface{}) error {
 
 	// Decode the message
 	buf := bytes.NewBuffer(d.Body)
-	if err := c.conf.Serializer.Decode(buf, out); err != nil {
+	if err := c.conf.Serializer.RelayDecode(buf, out); err != nil {
 		return fmt.Errorf("Failed to decode message! Got: %s", err)
 	}
 	return nil

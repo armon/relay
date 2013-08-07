@@ -33,7 +33,7 @@ func (p *Publisher) Publish(in interface{}) error {
 	conf := p.conf
 	buf := &p.buf
 	buf.Reset()
-	if err := conf.Serializer.Encode(buf, in); err != nil {
+	if err := conf.Serializer.RelayEncode(buf, in); err != nil {
 		return fmt.Errorf("Failed to encode message! Got: %s", err)
 	}
 
