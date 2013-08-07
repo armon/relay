@@ -8,7 +8,7 @@ import (
 )
 
 func CheckInteg(t *testing.T) {
-	if os.Getenv("INTEG_TESTS") != "true" || AMQPHost() != "" {
+	if os.Getenv("INTEG_TESTS") != "true" || AMQPHost() == "" {
 		t.SkipNow()
 	}
 }
