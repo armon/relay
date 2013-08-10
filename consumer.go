@@ -15,6 +15,7 @@ type Consumer struct {
 	channel     *amqp.Channel
 	deliverChan <-chan amqp.Delivery
 	lastMsg     uint64 // Last delivery tag, used for Ack
+	numNoAck    int    // Number of un-acknowledged messages
 	needAck     bool
 }
 
@@ -32,6 +33,11 @@ func (c *Consumer) Consume(out interface{}) error {
 		return fmt.Errorf("Ack required before consume!")
 	}
 
+	// Check if we've reached the prefetch count without Ack'ing
+	if c.conf.EnableMultiAck && c.numNoAck >= c.conf.PrefetchCount {
+		return fmt.Errorf("Consume will block without Ack!")
+	}
+
 	// Wait for a message
 	d, ok := <-c.deliverChan
 	if !ok {
@@ -41,6 +47,7 @@ func (c *Consumer) Consume(out interface{}) error {
 	// Store the delivery tag for future Ack
 	c.lastMsg = d.DeliveryTag
 	c.needAck = true
+	c.numNoAck++
 
 	// Decode the message
 	buf := bytes.NewBuffer(d.Body)
@@ -77,6 +84,7 @@ func (c *Consumer) Ack() error {
 		return err
 	}
 	c.needAck = false
+	c.numNoAck = 0
 	return nil
 }
 
@@ -96,6 +104,7 @@ func (c *Consumer) Nack() error {
 		return err
 	}
 	c.needAck = false
+	c.numNoAck = 0
 	return nil
 }
 

@@ -229,7 +229,7 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 	}
 
 	// Create a new Consumer
-	cons := &Consumer{r.conf, consName, name, ch, readCh, 0, false}
+	cons := &Consumer{r.conf, consName, name, ch, readCh, 0, 0, false}
 	return cons, nil
 }
 

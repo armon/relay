@@ -232,6 +232,74 @@ func TestMultiConsume(t *testing.T) {
 	}
 }
 
+func TestConsumeWithoutAck(t *testing.T) {
+	CheckInteg(t)
+
+	conf := Config{Addr: AMQPHost(), PrefetchCount: 5, EnableMultiAck: true}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a publisher
+	pub, err := r.Publisher("noack")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer pub.Close()
+
+	// Get a consumer
+	cons, err := r.Consumer("noack")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer cons.Close()
+
+	// Send a message
+	for i := 0; i < 10; i++ {
+		err = pub.Publish(string(i))
+		if err != nil {
+			t.Fatalf("unexpected err %s", err)
+		}
+	}
+
+	// Try to get the message
+	var in string
+	for i := 0; i < 5; i++ {
+		err = cons.Consume(&in)
+		if err != nil {
+			t.Fatalf("unexpected err %s", err)
+		}
+		if in != string(i) {
+			t.Fatalf("unexpected msg! %v %v", in, i)
+		}
+	}
+
+	// The 6th Consume should fail since prefetch is 5
+	err = cons.Consume(&in)
+	if err.Error() != "Consume will block without Ack!" {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Ack all the messages
+	err = cons.Ack()
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Should get the rest
+	for i := 5; i < 10; i++ {
+		err = cons.ConsumeAck(&in)
+		if err != nil {
+			t.Fatalf("unexpected err %s", err)
+		}
+		if in != string(i) {
+			t.Fatalf("unexpected msg! %#v %#v", in, string(i))
+		}
+	}
+}
+
 func TestCloseRelayInUse(t *testing.T) {
 	CheckInteg(t)
 
