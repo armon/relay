@@ -459,6 +459,8 @@ func TestDoubleConsume(t *testing.T) {
 	if err.Error() != "Ack required before consume!" {
 		t.Fatalf("unexpected err %s", err)
 	}
+
+	cons.Ack()
 }
 
 func TestCloseConsume(t *testing.T) {
@@ -531,5 +533,99 @@ func TestNoHost(t *testing.T) {
 	_, err = r.Publisher("test")
 	if err == nil {
 		t.Fatalf("expected err!")
+	}
+}
+
+func TestMessageExpires(t *testing.T) {
+	CheckInteg(t)
+
+	conf := Config{Addr: AMQPHost(), MessageTTL: 10 * time.Millisecond}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	pub, err := r.Publisher("test")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer pub.Close()
+
+	msg := "the quick brown fox jumps over the lazy dog"
+	err = pub.Publish(msg)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Wait for expiration
+	time.Sleep(15 * time.Millisecond)
+
+	cons, err := r.Consumer("test")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer cons.Close()
+
+	// Try to get the message
+	var in string
+	err = cons.ConsumeTimeout(&in, time.Second)
+	if err.Error() != "Timeout" {
+		t.Fatalf("unexpected err %s", err)
+	}
+}
+
+func TestConsumeTimeout(t *testing.T) {
+	CheckInteg(t)
+
+	conf := Config{Addr: AMQPHost(), MessageTTL: 10 * time.Millisecond}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	cons, err := r.Consumer("timeout")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer cons.Close()
+
+	// Try to get the message
+	var in string
+	err = cons.ConsumeTimeout(&in, 50*time.Millisecond)
+	if err.Error() != "Timeout" {
+		t.Fatalf("unexpected err %s", err)
+	}
+}
+
+func TestQueueTTL(t *testing.T) {
+	CheckInteg(t)
+
+	conf := Config{Addr: AMQPHost(), QueueTTL: 10 * time.Millisecond}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	pub, err := r.Publisher("queuettl")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer pub.Close()
+
+	cons, err := r.Consumer("queuettl")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	cons.Close()
+
+	time.Sleep(20 * time.Millisecond)
+
+	msg := "the quick brown fox jumps over the lazy dog"
+	err = pub.Publish(msg)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
 	}
 }
