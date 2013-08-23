@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/streadway/amqp"
+	"time"
 )
 
 // Consumer is a type that is used only for consuming messages from a single queue.
@@ -19,10 +20,10 @@ type Consumer struct {
 	needAck     bool
 }
 
-// Consume will consume the next available message. The
+// Consume will consume the next available message or times out waiting. The
 // message must be acknowledged with Ack() or Nack() before
 // the next call to Consume unless EnableMultiAck is true.
-func (c *Consumer) Consume(out interface{}) error {
+func (c *Consumer) ConsumeTimeout(out interface{}, timeout time.Duration) error {
 	// Check if we are closed
 	if c.channel == nil {
 		return ChannelClosed
@@ -38,10 +39,22 @@ func (c *Consumer) Consume(out interface{}) error {
 		return fmt.Errorf("Consume will block without Ack!")
 	}
 
+	// Get a timeout
+	var wait <-chan time.Time
+	if timeout >= 0 {
+		wait = time.After(timeout)
+	}
+
 	// Wait for a message
-	d, ok := <-c.deliverChan
-	if !ok {
-		return ChannelClosed
+	var d amqp.Delivery
+	var ok bool
+	select {
+	case d, ok = <-c.deliverChan:
+		if !ok {
+			return ChannelClosed
+		}
+	case <-wait:
+		return fmt.Errorf("Timeout")
 	}
 
 	// Store the delivery tag for future Ack
@@ -55,6 +68,13 @@ func (c *Consumer) Consume(out interface{}) error {
 		return fmt.Errorf("Failed to decode message! Got: %s", err)
 	}
 	return nil
+}
+
+// Consume will consume the next available message. The
+// message must be acknowledged with Ack() or Nack() before
+// the next call to Consume unless EnableMultiAck is true.
+func (c *Consumer) Consume(out interface{}) error {
+	return c.ConsumeTimeout(out, -1)
 }
 
 // ConsumeAck will consume the next message and acknowledge
