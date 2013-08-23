@@ -5,23 +5,26 @@ import (
 	"github.com/streadway/amqp"
 	"log"
 	"sync"
+	"time"
 )
 
 // Config is passed into New when creating a Relay to tune
 // various parameters around broker interactions.
 type Config struct {
-	Addr                  string     // Host address to dial
-	Port                  int        // Host por to bind
-	Vhost                 string     // Broker Vhost
-	Username              string     // Broker username
-	Password              string     // Broker password
-	EnableTLS             bool       // Broker TLS connection
-	PrefetchCount         int        // How many messages to prefetch
-	EnableMultiAck        bool       // Controls if we allow multi acks
-	DisablePublishConfirm bool       // Disables confirmations of publish
-	DisablePersistence    bool       // Disables message persistence
-	Exchange              string     // Custom exchange. Defaults to "relay"
-	Serializer            Serializer // Defaults to GOBSerializer
+	Addr                  string        // Host address to dial
+	Port                  int           // Host por to bind
+	Vhost                 string        // Broker Vhost
+	Username              string        // Broker username
+	Password              string        // Broker password
+	EnableTLS             bool          // Broker TLS connection
+	PrefetchCount         int           // How many messages to prefetch
+	EnableMultiAck        bool          // Controls if we allow multi acks
+	DisablePublishConfirm bool          // Disables confirmations of publish
+	DisablePersistence    bool          // Disables message persistence
+	Exchange              string        // Custom exchange. Defaults to "relay"
+	Serializer            Serializer    // Defaults to GOBSerializer
+	MessageTTL            time.Duration // Optional, attempts to put a TTL on message life
+	QueueTTL              time.Duration // Optional, attempts to make a TTL on a queue life
 }
 
 type Relay struct {
@@ -152,8 +155,15 @@ func (r *Relay) getChan(conn **amqp.Connection) (*amqp.Channel, error) {
 
 // Ensures the given queue exists and is bound to the exchange
 func (r *Relay) declareQueue(ch *amqp.Channel, name string) error {
+	var args amqp.Table
+	if r.conf.QueueTTL > 0 {
+		args = make(map[string]interface{})
+		msec := uint(r.conf.QueueTTL / time.Millisecond)
+		args["x-expires"] = msec
+	}
+
 	// Declare the queue
-	if _, err := ch.QueueDeclare(name, true, false, false, false, nil); err != nil {
+	if _, err := ch.QueueDeclare(name, true, false, false, false, args); err != nil {
 		return fmt.Errorf("Failed to declare queue '%s'! Got: %s", name, err)
 	}
 

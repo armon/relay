@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -43,6 +44,12 @@ func (p *Publisher) Publish(in interface{}) error {
 		Timestamp:    time.Now().UTC(),
 		ContentType:  p.contentType,
 		Body:         buf.Bytes(),
+	}
+
+	// Check for a message ttl
+	if p.conf.MessageTTL > 0 {
+		msec := int(p.conf.MessageTTL / time.Millisecond)
+		msg.Expiration = strconv.Itoa(msec)
 	}
 
 	// Publish the message
