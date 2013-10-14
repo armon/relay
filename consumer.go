@@ -65,6 +65,9 @@ func (c *Consumer) ConsumeTimeout(out interface{}, timeout time.Duration) error 
 	// Decode the message
 	buf := bytes.NewBuffer(d.Body)
 	if err := c.conf.Serializer.RelayDecode(buf, out); err != nil {
+		// Since we have dequeued, we must now Nack, since the consumer
+		// will not ever receive the message. This way redelivery is possible.
+		c.Nack()
 		return fmt.Errorf("Failed to decode message! Got: %s", err)
 	}
 	return nil
