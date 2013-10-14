@@ -213,6 +213,14 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 		return nil, err
 	}
 
+	// Ensure the channel is closed on error
+	success := false
+	defer func() {
+		if !success {
+			ch.Close()
+		}
+	}()
+
 	// Ensure the queue exists
 	name := queueName(queue)
 	if err := r.declareQueue(ch, name); err != nil {
@@ -239,6 +247,7 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 	}
 
 	// Create a new Consumer
+	success = true
 	cons := &Consumer{r.conf, consName, name, ch, readCh, 0, 0, false}
 	return cons, nil
 }
@@ -251,6 +260,14 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Ensure the channel is closed on error
+	success := false
+	defer func() {
+		if !success {
+			ch.Close()
+		}
+	}()
 
 	// Ensure the queue exists
 	name := queueName(queue)
@@ -285,5 +302,7 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 		pub.ackCh, pub.nackCh, pub.errCh = ackCh, nackCh, errCh
 	}
 
+	// Successful return
+	success = true
 	return pub, nil
 }
