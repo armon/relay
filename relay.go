@@ -158,7 +158,7 @@ func (r *Relay) declareQueue(ch *amqp.Channel, name string) error {
 	var args amqp.Table
 	if r.conf.QueueTTL > 0 {
 		args = make(map[string]interface{})
-		msec := uint(r.conf.QueueTTL / time.Millisecond)
+		msec := int32(r.conf.QueueTTL / time.Millisecond)
 		args["x-expires"] = msec
 	}
 
