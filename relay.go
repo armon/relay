@@ -37,6 +37,42 @@ type Relay struct {
 // Returned to indicate a closed channel
 var ChannelClosed = fmt.Errorf("Channel closed!")
 
+// ConfigFromURI attempts to parse the given AMQP URI according to the spec
+// and return a relay config based on it.
+// See http://www.rabbitmq.com/uri-spec.html.
+//
+// Default values for the fields are:
+//
+//   Scheme: amqp
+//   Host: localhost
+//   Port: 5672
+//   Username: guest
+//   Password: guest
+//   Vhost: /
+//
+func ConfigFromURI(amqpUri string) (*Config, error) {
+
+	uri, err := amqp.ParseURI(amqpUri)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// build the configuration, note the defaults above
+	config := &Config{
+		Addr:     uri.Host,
+		Port:     uri.Port,
+		Vhost:    uri.Vhost,
+		Username: uri.Username,
+		Password: uri.Password,
+	}
+
+	// assign this field based on wether the scheme is amqps, which is amqp with TLS
+	config.EnableTLS = (uri.Scheme == "amqps")
+
+	return config, nil
+}
+
 // New will create a new Relay that can be used to create
 // new publishers or consumers. The caller should no longer modify
 // the configuration once New is invoked, nor should it be

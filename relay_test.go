@@ -2,6 +2,7 @@ package relay
 
 import (
 	"os"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -55,6 +56,20 @@ func testSendRecv(t *testing.T, r *Relay) {
 	// Check message
 	if in != msg {
 		t.Fatalf("unexpected msg! %v %v", in, msg)
+	}
+}
+
+func TestConfigFromURI(t *testing.T) {
+	config, err := ConfigFromURI("amqp://user:pass@host:10000/vhost")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	obj := &Config{Addr: "host", Port: 10000, Username: "user", Password: "pass", Vhost: "vhost"}
+
+	// Ensure equal
+	if !reflect.DeepEqual(obj, config) {
+		t.Fatalf("not equal. %#v %#v", obj, config)
 	}
 }
 
