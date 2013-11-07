@@ -2,6 +2,7 @@ package relay
 
 import (
 	"encoding/gob"
+	"encoding/json"
 	"io"
 )
 
@@ -26,5 +27,22 @@ func (*GOBSerializer) RelayEncode(w io.Writer, e interface{}) error {
 }
 func (*GOBSerializer) RelayDecode(r io.Reader, o interface{}) error {
 	dec := gob.NewDecoder(r)
+	return dec.Decode(o)
+}
+
+// JSONSerializer implements the Serializer interface and uses JSON
+type JSONSerializer struct{}
+
+func (*JSONSerializer) ContentType() string {
+	return "text/json"
+}
+
+func (*JSONSerializer) RelayEncode(w io.Writer, e interface{}) error {
+	enc := json.NewEncoder(w)
+	return enc.Encode(e)
+}
+
+func (*JSONSerializer) RelayDecode(r io.Reader, o interface{}) error {
+	dec := json.NewDecoder(r)
 	return dec.Decode(o)
 }
