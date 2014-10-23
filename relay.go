@@ -2,10 +2,12 @@ package relay
 
 import (
 	"fmt"
-	"github.com/streadway/amqp"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/armon/relay/broker"
+	"github.com/streadway/amqp"
 )
 
 // Config is passed into New when creating a Relay to tune
@@ -341,4 +343,26 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 	// Successful return
 	success = true
 	return pub, nil
+}
+
+// Broker is used to wrap a Relay connection in one that is Broker
+// compatible.
+func (r *Relay) Broker() broker.Broker {
+	return &relayBroker{r}
+}
+
+type relayBroker struct {
+	relay *Relay
+}
+
+func (r *relayBroker) Close() error {
+	return r.relay.Close()
+}
+
+func (r *relayBroker) Publisher(q string) (broker.Publisher, error) {
+	return r.relay.Publisher(q)
+}
+
+func (r *relayBroker) Consumer(q string) (broker.Consumer, error) {
+	return r.relay.Consumer(q)
 }
