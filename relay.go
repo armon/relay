@@ -19,7 +19,7 @@ type Config struct {
 	Username              string        // Broker username
 	Password              string        // Broker password
 	EnableTLS             bool          // Broker TLS connection
-	PrefetchCount         int           // How many messages to prefetch
+	PrefetchCount         int           // How many messages to prefetch. If < 1, defaults to 1.
 	EnableMultiAck        bool          // Controls if we allow multi acks
 	DisablePublishConfirm bool          // Disables confirmations of publish
 	DisablePersistence    bool          // Disables message persistence
@@ -108,6 +108,9 @@ func New(c *Config) (*Relay, error) {
 	}
 	if c.Serializer == nil {
 		c.Serializer = &GOBSerializer{}
+	}
+	if c.PrefetchCount < 1 {
+		c.PrefetchCount = 1
 	}
 
 	// Create relay with finalizer
