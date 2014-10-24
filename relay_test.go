@@ -585,7 +585,7 @@ func TestMessageExpires(t *testing.T) {
 	// Try to get the message
 	var in string
 	err = cons.ConsumeTimeout(&in, time.Second)
-	if err.Error() != "Timeout" {
+	if err != TimedOut {
 		t.Fatalf("unexpected err %s", err)
 	}
 }
@@ -609,7 +609,7 @@ func TestConsumeTimeout(t *testing.T) {
 	// Try to get the message
 	var in string
 	err = cons.ConsumeTimeout(&in, 50*time.Millisecond)
-	if err.Error() != "Timeout" {
+	if err != TimedOut {
 		t.Fatalf("unexpected err %s", err)
 	}
 }

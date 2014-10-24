@@ -54,7 +54,7 @@ func (c *Consumer) ConsumeTimeout(out interface{}, timeout time.Duration) error 
 			return ChannelClosed
 		}
 	case <-wait:
-		return fmt.Errorf("Timeout")
+		return TimedOut
 	}
 
 	// Store the delivery tag for future Ack
