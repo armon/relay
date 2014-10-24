@@ -39,6 +39,9 @@ type Relay struct {
 // Returned to indicate a closed channel
 var ChannelClosed = fmt.Errorf("Channel closed!")
 
+// Returned to indicate a read timeout
+var TimedOut = fmt.Errorf("Timeout")
+
 // ConfigFromURI attempts to parse the given AMQP URI according to the spec
 // and return a relay config based on it.
 // See http://www.rabbitmq.com/uri-spec.html.
