@@ -132,7 +132,7 @@ func (i *InmemConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) e
 
 	// Set the message
 	dst := reflect.Indirect(reflect.ValueOf(out))
-	src := reflect.ValueOf(msg)
+	src := reflect.Indirect(reflect.ValueOf(msg))
 	dst.Set(src)
 	return nil
 }
