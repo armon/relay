@@ -1,11 +1,11 @@
 package inmem
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 	"time"
 
+	"github.com/armon/relay"
 	"github.com/armon/relay/broker"
 )
 
@@ -122,7 +122,7 @@ func (i *InmemConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) e
 		case <-time.After(time.Millisecond):
 			continue
 		case <-timeoutCh:
-			return fmt.Errorf("Timeout")
+			return relay.TimedOut
 		}
 	}
 
