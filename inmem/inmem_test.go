@@ -3,6 +3,8 @@ package inmem
 import (
 	"testing"
 	"time"
+
+	"github.com/armon/relay"
 )
 
 func TestInmemBroker(t *testing.T) {
@@ -86,7 +88,7 @@ func TestInmemBroker(t *testing.T) {
 
 	// Should timeout
 	err = cons.ConsumeTimeout(&out, 5*time.Millisecond)
-	if err.Error() != "Timeout" {
+	if err != relay.TimedOut {
 		t.Fatalf("err: %v", err)
 	}
 }
