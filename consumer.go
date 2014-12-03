@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/streadway/amqp"
+	"strings"
 	"time"
 )
 
@@ -168,4 +169,10 @@ func (c *Consumer) Close() error {
 
 	// Shutdown the channel
 	return c.channel.Close()
+}
+
+// IsDecodeFailure is a helper to determine if the error returned is a
+// deserialization error.
+func IsDecodeFailure(err error) bool {
+	return strings.HasPrefix(err.Error(), "Failed to decode message!")
 }

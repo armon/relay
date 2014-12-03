@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"sync"
@@ -642,5 +643,17 @@ func TestQueueTTL(t *testing.T) {
 	err = pub.Publish(msg)
 	if err != nil {
 		t.Fatalf("unexpected err %s", err)
+	}
+}
+
+func TestIsDecodeFailure(t *testing.T) {
+	err := fmt.Errorf("Failed to decode message! Something bad happened.")
+	if !IsDecodeFailure(err) {
+		t.Fatalf("should be decode failure")
+	}
+
+	err = fmt.Errorf("Not a decode failure error")
+	if IsDecodeFailure(err) {
+		t.Fatalf("should not be decode failure")
 	}
 }
