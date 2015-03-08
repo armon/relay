@@ -198,7 +198,7 @@ func (r *Relay) getChan(conn **amqp.Connection) (*amqp.Channel, error) {
 }
 
 // Ensures the given queue exists and is bound to the exchange
-func (r *Relay) declareQueue(ch *amqp.Channel, name string) error {
+func (r *Relay) declareQueue(ch *amqp.Channel, name string, routingKey string) error {
 	var args amqp.Table
 	if r.conf.QueueTTL > 0 {
 		args = make(map[string]interface{})
@@ -212,7 +212,7 @@ func (r *Relay) declareQueue(ch *amqp.Channel, name string) error {
 	}
 
 	// Bind the queue to the exchange
-	if err := ch.QueueBind(name, name, r.conf.Exchange, false, nil); err != nil {
+	if err := ch.QueueBind(name, routingKey, r.conf.Exchange, false, nil); err != nil {
 		return fmt.Errorf("Failed to bind queue '%s'! Got: %s", name, err)
 	}
 	return nil
@@ -251,6 +251,13 @@ func (r *Relay) Close() error {
 // Consumer will return a new handle that can be used
 // to consume messages from a given queue.
 func (r *Relay) Consumer(queue string) (*Consumer, error) {
+	return r.ConsumerByRoutingKey(queue, queue)
+}
+
+// ConsumerByRoutingKey will return a new handle that can be used
+// to consume messages from a given queue and routing key.
+func (r *Relay) ConsumerByRoutingKey(queue string, routingKey string) (*Consumer, error) {
+
 	// Get a new channel
 	ch, err := r.getChan(&r.consConn)
 	if err != nil {
@@ -267,7 +274,7 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 
 	// Ensure the queue exists
 	name := queueName(queue)
-	if err := r.declareQueue(ch, name); err != nil {
+	if err := r.declareQueue(ch, name, routingKey); err != nil {
 		return nil, err
 	}
 
@@ -299,6 +306,12 @@ func (r *Relay) Consumer(queue string) (*Consumer, error) {
 // Publisher will return a new handle that can be used
 // to publish messages to the given queue.
 func (r *Relay) Publisher(queue string) (*Publisher, error) {
+	return r.PublisherWithRoutingKey(queue, queue)
+}
+
+// PublisherWithRoutingKey will return a new handle that can be used
+// to publish messages to the given queue and routing key.
+func (r *Relay) PublisherWithRoutingKey(queue string, routingKey string) (*Publisher, error) {
 	// Get a new channel
 	ch, err := r.getChan(&r.pubConn)
 	if err != nil {
@@ -315,7 +328,7 @@ func (r *Relay) Publisher(queue string) (*Publisher, error) {
 
 	// Ensure the queue exists
 	name := queueName(queue)
-	if err := r.declareQueue(ch, name); err != nil {
+	if err := r.declareQueue(ch, name, routingKey); err != nil {
 		return nil, err
 	}
 
