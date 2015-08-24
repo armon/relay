@@ -251,12 +251,12 @@ func (r *Relay) Close() error {
 // Consumer will return a new handle that can be used
 // to consume messages from a given queue.
 func (r *Relay) Consumer(queue string) (*Consumer, error) {
-	return r.ConsumerByRoutingKey(queue, queue)
+	return r.ConsumerWithRoutingKey(queue, queue)
 }
 
-// ConsumerByRoutingKey will return a new handle that can be used
+// ConsumerWithRoutingKey will return a new handle that can be used
 // to consume messages from a given queue and routing key.
-func (r *Relay) ConsumerByRoutingKey(queue string, routingKey string) (*Consumer, error) {
+func (r *Relay) ConsumerWithRoutingKey(queue string, routingKey string) (*Consumer, error) {
 
 	// Get a new channel
 	ch, err := r.getChan(&r.consConn)
