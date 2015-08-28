@@ -657,3 +657,52 @@ func TestIsDecodeFailure(t *testing.T) {
 		t.Fatalf("should not be decode failure")
 	}
 }
+
+func TestCustomRoutingKey(t *testing.T) {
+	CheckInteg(t)
+
+	conf := Config{Addr: AMQPHost()}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a publisher
+	pub, err := r.PublisherWithRoutingKey("test", "widgets")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer pub.Close()
+
+	// Get a consumer
+	cons, err := r.ConsumerWithRoutingKey("test", "widgets")
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Send a message
+	msg := "the quick brown fox jumps over the lazy dog"
+	err = pub.Publish(msg)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Try to get the message
+	var in string
+	err = cons.Consume(&in)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Ack the message
+	err = cons.Ack()
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Check message
+	if in != msg {
+		t.Fatalf("unexpected msg! %v %v", in, msg)
+	}
+}
