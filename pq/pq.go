@@ -123,6 +123,9 @@ func (q *PriorityQueue) consumer(pri int) (broker.Consumer, error) {
 
 	cons, err := q.source.Consumer(queueName(q.prefix, pri))
 	if err != nil {
+		if cons != nil {
+			cons.Close()
+		}
 		return nil, err
 	}
 
@@ -178,7 +181,7 @@ func (q *PriorityQueue) consume(
 	for i := q.Min(); i <= q.Max(); i++ {
 		cons, err := q.consumer(i)
 		if err != nil {
-			return cons, 0, err
+			return nil, 0, err
 		}
 		consumers = append(consumers, cons)
 	}
@@ -202,6 +205,7 @@ func (q *PriorityQueue) consume(
 					if err == relay.TimedOut {
 						continue
 					}
+					cons.Close()
 					errCh <- err
 					return
 				}
@@ -209,10 +213,7 @@ func (q *PriorityQueue) consume(
 				// Check for cancellation
 				select {
 				case <-cancelCh:
-					if cons != nil {
-						cons.Nack()
-						cons.Close()
-					}
+					cons.Close()
 				default:
 				}
 
