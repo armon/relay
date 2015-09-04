@@ -77,6 +77,9 @@ func (i *InmemPublisher) Publish(in interface{}) error {
 }
 
 func (i *InmemConsumer) Close() error {
+	if i.NeedAck {
+		i.Nack()
+	}
 	i.Closed = true
 	return nil
 }

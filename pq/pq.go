@@ -177,14 +177,24 @@ func (q *PriorityQueue) consume(
 	errCh := make(chan error, q.Max()+1)
 	respCh := make(chan priorityResp, q.Max()+1)
 
-	var consumers []broker.Consumer
+	// Create consumers and map them to their corresponding priority
+	consumers := make(map[int]broker.Consumer, q.Max()+1)
 	for i := q.Min(); i <= q.Max(); i++ {
 		cons, err := q.consumer(i)
 		if err != nil {
 			return nil, 0, err
 		}
-		consumers = append(consumers, cons)
+		consumers[i] = cons
 	}
+
+	// Close all consumers when we return. We will remove the consumer
+	// of the highest priority entry before this is called so as to
+	// avoid nack'ing the returned message.
+	defer func() {
+		for _, cons := range consumers {
+			cons.Close()
+		}
+	}()
 
 	for i := q.Min(); i <= q.Max(); i++ {
 		go func(cons broker.Consumer, pri int) {
@@ -192,10 +202,8 @@ func (q *PriorityQueue) consume(
 			for {
 				select {
 				case <-cancelCh:
-					cons.Close()
 					return
 				case <-shutdownCh:
-					cons.Close()
 					return
 				default:
 				}
@@ -205,7 +213,6 @@ func (q *PriorityQueue) consume(
 					if err == relay.TimedOut {
 						continue
 					}
-					cons.Close()
 					errCh <- err
 					return
 				}
@@ -213,7 +220,7 @@ func (q *PriorityQueue) consume(
 				// Check for cancellation
 				select {
 				case <-cancelCh:
-					cons.Close()
+					return
 				default:
 				}
 
@@ -242,17 +249,7 @@ OUTER:
 
 		case r := <-respCh:
 			if r.priority <= highest {
-				// Send a negative acknowledgement and close the consumer
-				r.consumer.Nack()
-				r.consumer.Close()
 				continue
-			}
-
-			// Close the outstanding consumer. This is only set if some other
-			// value had previously been considered the highest value.
-			if cons != nil {
-				cons.Nack()
-				cons.Close()
 			}
 
 			// Received message was higher priority, so re-assign the results
@@ -270,6 +267,7 @@ OUTER:
 			// Signal all higher-priority readers to close, they didn't receive
 			// any messages we can use.
 			close(shutdownCh)
+			delete(consumers, highest)
 			return cons, highest, nil
 
 		case <-cancelCh:
