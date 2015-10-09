@@ -344,7 +344,7 @@ func (r *Relay) PublisherWithRoutingKey(queue string, routingKey string) (*Publi
 	}
 
 	// Create a new Publisher
-	pub := &Publisher{conf: r.conf, queue: name, channel: ch,
+	pub := &Publisher{conf: r.conf, queue: name, key: routingKey, channel: ch,
 		contentType: contentType, mode: mode}
 
 	// Check if we need confirmations

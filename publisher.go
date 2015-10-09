@@ -14,6 +14,7 @@ import (
 type Publisher struct {
 	conf        *Config
 	queue       string
+	key         string
 	channel     *amqp.Channel
 	contentType string
 	mode        uint8
@@ -53,8 +54,8 @@ func (p *Publisher) Publish(in interface{}) error {
 	}
 
 	// Publish the message
-	if err := p.channel.Publish(conf.Exchange, p.queue, false, false, msg); err != nil {
-		return fmt.Errorf("Failed to publish to '%s'! Got: %s", p.queue, err)
+	if err := p.channel.Publish(conf.Exchange, p.key, false, false, msg); err != nil {
+		return fmt.Errorf("Failed to publish to %q (key %q)! Got: %s", p.queue, p.key, err)
 	}
 
 	// Check if we wait for confirmation
