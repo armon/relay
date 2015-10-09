@@ -54,7 +54,7 @@ func TestJSONSerializer(t *testing.T) {
 		t.Fatalf("bad content type")
 	}
 
-	obj := basic{"1234567890", 12.1, time.Now()}
+	obj := basic{"1234567890", 12.1, time.Now().UTC()}
 
 	var buf bytes.Buffer
 
