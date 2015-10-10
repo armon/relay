@@ -167,6 +167,7 @@ func (q *PriorityQueue) consume(
 	out interface{}, cancelCh chan struct{}) (broker.Consumer, int, error) {
 
 	shutdownCh := make(chan struct{})
+	defer close(shutdownCh)
 
 	// Populate the cancelCh if none was provided
 	if cancelCh == nil {
@@ -179,13 +180,6 @@ func (q *PriorityQueue) consume(
 
 	// Create consumers and map them to their corresponding priority
 	consumers := make(map[int]broker.Consumer, q.Max()+1)
-	for i := q.Min(); i <= q.Max(); i++ {
-		cons, err := q.consumer(i)
-		if err != nil {
-			return nil, 0, err
-		}
-		consumers[i] = cons
-	}
 
 	// Close all consumers when we return. We will remove the consumer
 	// of the highest priority entry before this is called so as to
@@ -195,6 +189,15 @@ func (q *PriorityQueue) consume(
 			cons.Close()
 		}
 	}()
+
+	// Initialize the consumers
+	for i := q.Min(); i <= q.Max(); i++ {
+		cons, err := q.consumer(i)
+		if err != nil {
+			return nil, 0, err
+		}
+		consumers[i] = cons
+	}
 
 	for i := q.Min(); i <= q.Max(); i++ {
 		go func(cons broker.Consumer, pri int) {
@@ -244,12 +247,11 @@ OUTER:
 	for {
 		select {
 		case err := <-errCh:
-			close(shutdownCh)
 			return cons, 0, err
 
 		case r := <-respCh:
 			if r.priority <= highest {
-				continue
+				continue OUTER
 			}
 
 			// Received message was higher priority, so re-assign the results
@@ -264,16 +266,10 @@ OUTER:
 			wait = time.After(q.quietPeriod)
 
 		case <-wait:
-			// Signal all higher-priority readers to close, they didn't receive
-			// any messages we can use.
-			close(shutdownCh)
-			delete(consumers, highest)
+			delete(consumers, highest) // Prevent closing
 			return cons, highest, nil
 
 		case <-cancelCh:
-			break OUTER
-
-		case <-shutdownCh:
 			break OUTER
 		}
 	}
