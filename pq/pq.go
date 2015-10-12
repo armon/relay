@@ -199,7 +199,7 @@ func (q *PriorityQueue) consume(
 		consumers[i] = cons
 	}
 
-	for i := q.Min(); i <= q.Max(); i++ {
+	for pri, cons := range consumers {
 		go func(cons broker.Consumer, pri int) {
 			val := reflect.New(reflect.TypeOf(out)).Interface()
 			for {
@@ -236,7 +236,7 @@ func (q *PriorityQueue) consume(
 				respCh <- r
 				return
 			}
-		}(consumers[i], i)
+		}(cons, pri)
 	}
 
 	var wait <-chan time.Time
