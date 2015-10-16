@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armon/relay"
 	"github.com/armon/relay/broker"
 )
 
@@ -17,12 +16,6 @@ import (
 // very simple and abstract.
 
 var (
-	// The duration of a read attempt from an individual AMQP queue. The
-	// consumer methods use this value to run short Consume() calls so that
-	// we can check for interrupts. The higher this number is, the longer it
-	// it may take to interrupt a read and exit.
-	consumeResetInterval = 500 * time.Millisecond
-
 	// The minimum amount of time to wait after receiving a message for a higher
 	// priority message to arrive.
 	MinQuietPeriod = 10 * time.Millisecond
@@ -166,9 +159,6 @@ func (q *PriorityQueue) Publish(payload interface{}, pri int) error {
 func (q *PriorityQueue) consume(
 	out interface{}, cancelCh chan struct{}) (broker.Consumer, int, error) {
 
-	shutdownCh := make(chan struct{})
-	defer close(shutdownCh)
-
 	// Populate the cancelCh if none was provided
 	if cancelCh == nil {
 		cancelCh = make(chan struct{})
@@ -199,42 +189,21 @@ func (q *PriorityQueue) consume(
 		consumers[i] = cons
 	}
 
+	// Start each consumer
 	for pri, cons := range consumers {
 		go func(cons broker.Consumer, pri int) {
+			// Make a new object and consume into it.
 			val := reflect.New(reflect.TypeOf(out)).Interface()
-			for {
-				select {
-				case <-cancelCh:
-					return
-				case <-shutdownCh:
-					return
-				default:
-				}
-
-				// Keep consuming with timeout so we can bail if we need to
-				if err := cons.ConsumeTimeout(&val, consumeResetInterval); err != nil {
-					if err == relay.TimedOut {
-						continue
-					}
-					errCh <- err
-					return
-				}
-
-				// Check for cancellation
-				select {
-				case <-cancelCh:
-					return
-				default:
-				}
-
-				// Create the response object to send down the channel
-				r := priorityResp{
-					value:    val,
-					priority: pri,
-					consumer: cons,
-				}
-				respCh <- r
+			if err := cons.Consume(&val); err != nil {
+				errCh <- err
 				return
+			}
+
+			// Create the response object to send down the channel
+			respCh <- priorityResp{
+				value:    val,
+				priority: pri,
+				consumer: cons,
 			}
 		}(cons, pri)
 	}
