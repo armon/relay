@@ -209,14 +209,13 @@ func (q *PriorityQueue) consume(
 	}
 
 	var wait <-chan time.Time
-	var cons broker.Consumer
 	highest := q.Min() - 1 // Allows Min() messages to be accepted
 
 OUTER:
 	for {
 		select {
 		case err := <-errCh:
-			return cons, 0, err
+			return nil, 0, err
 
 		case r := <-respCh:
 			if r.priority <= highest {
@@ -231,11 +230,13 @@ OUTER:
 			dst.Set(reflect.Indirect(src))
 
 			highest = r.priority
-			cons = r.consumer
 			wait = time.After(q.quietPeriod)
 
 		case <-wait:
-			delete(consumers, highest) // Prevent closing
+			// Pop the consumer of the highest priority message out of the
+			// map and return it. All other consumers are automatically closed.
+			cons := consumers[highest]
+			delete(consumers, highest)
 			return cons, highest, nil
 
 		case <-cancelCh:
@@ -243,7 +244,7 @@ OUTER:
 		}
 	}
 
-	return cons, 0, nil
+	return nil, 0, nil
 }
 
 // Consume is the public method for consuming data out of a priority queue. It
