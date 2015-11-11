@@ -74,6 +74,31 @@ func TestConfigFromURI(t *testing.T) {
 	}
 }
 
+func TestConfigDefaults(t *testing.T) {
+	r, err := New(&Config{})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if r.conf.Vhost != "/" {
+		t.Fatalf("bad vhost: %q", r.conf.Vhost)
+	}
+	if r.conf.Username != "guest" {
+		t.Fatalf("bad username: %q", r.conf.Username)
+	}
+	if r.conf.Password != "guest" {
+		t.Fatalf("bad password: %q", r.conf.Password)
+	}
+	if r.conf.Exchange != "relay" {
+		t.Fatalf("bad exchange: %q", r.conf.Exchange)
+	}
+	if r.conf.ExchangeType != "direct" {
+		t.Fatalf("bad exchange type: %q", r.conf.ExchangeType)
+	}
+	if r.conf.PrefetchCount != 1 {
+		t.Fatalf("bad prefetch count: %d", r.conf.PrefetchCount)
+	}
+}
+
 func TestSimplePublishConsume(t *testing.T) {
 	CheckInteg(t)
 
