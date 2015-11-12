@@ -210,8 +210,11 @@ func (r *Relay) declareQueue(ch *amqp.Channel, name string, routingKey string) e
 		args["x-expires"] = msec
 	}
 
+	// Automatically use an exclusive queue if an empty name is provided.
+	exclusive := name == ""
+
 	// Declare the queue
-	if _, err := ch.QueueDeclare(name, true, false, false, false, args); err != nil {
+	if _, err := ch.QueueDeclare(name, true, false, exclusive, false, args); err != nil {
 		return fmt.Errorf("Failed to declare queue '%s'! Got: %s", name, err)
 	}
 

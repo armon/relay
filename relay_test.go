@@ -731,3 +731,123 @@ func TestCustomRoutingKey(t *testing.T) {
 		t.Fatalf("unexpected msg! %v %v", in, msg)
 	}
 }
+
+func TestExclusiveQueue(t *testing.T) {
+	CheckInteg(t)
+
+	// Make the config
+	config := &Config{
+		Addr:     AMQPHost(),
+		Exchange: "exclusive-test",
+	}
+
+	for i := 0; i < 3; i++ {
+		// Create a publisher with an exclusive queue
+		r, err := New(config)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		pub, err := r.Publisher("") // exclusive
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		// Publish a message
+		if err := pub.Publish("foo"); err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		// Close the publisher
+		pub.Close()
+	}
+
+	// Create a consumer with the same name
+	r, err := New(config)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	cons, err := r.Consumer("") // exclusive
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	defer cons.Close()
+
+	// Try consuming. Queue should be empty.
+	var out string
+	if err := cons.ConsumeTimeout(&out, time.Second); err != TimedOut {
+		t.Fatalf("expected empty queue, got: %v", out)
+	}
+}
+
+func TestExchangeType_Fanout(t *testing.T) {
+	CheckInteg(t)
+
+	// Make the config
+	config := &Config{
+		Addr:         AMQPHost(),
+		Exchange:     "fanout-test",
+		ExchangeType: "fanout",
+	}
+
+	// Create the wait group
+	var wg sync.WaitGroup
+	wg.Add(10)
+
+	// Signal the channel when everyone is done
+	doneCh := make(chan struct{})
+	go func() {
+		defer close(doneCh)
+		wg.Wait()
+	}()
+
+	// Start all of the consumers
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer wg.Done()
+
+			r, err := New(config)
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+			defer r.Close()
+
+			cons, err := r.Consumer("") // exclusive
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+
+			var out string
+			if err := cons.Consume(&out); err != nil {
+				t.Fatalf("err: %v", err)
+			}
+			cons.Ack()
+		}()
+	}
+
+	// Wait for consumers to all start
+	time.Sleep(time.Second)
+
+	// Set up the publisher
+	r, err := New(config)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	pub, err := r.Publisher("") // exclusive
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	// Publish a single message
+	if err := pub.Publish("hi"); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	// Every consumer should get a copy.
+	select {
+	case <-doneCh:
+	case <-time.After(time.Second):
+		t.Fatalf("should fanout")
+	}
+}
