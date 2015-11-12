@@ -10,6 +10,11 @@ import (
 
 // Converts the user input name into the actual name
 func queueName(name string) string {
+	// Allow using a nameless queue
+	if name == "" {
+		return name
+	}
+
 	return "relay." + name
 }
 
