@@ -160,7 +160,6 @@ func (rc *retryConsumer) Consume(out interface{}) error {
 // the timeout may actually be longer than specified to allow reconnection
 // attempts to take place.
 func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) error {
-	wait := rc.min
 	for i := 0; ; i++ {
 		cons, err := rc.consumer(true)
 		if err != nil {
@@ -184,12 +183,12 @@ func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) 
 			log.Printf("[ERR] relay: consumer giving up after %d attempts", i)
 			return err
 		}
-		log.Printf("[DEBUG] relay: consumer retrying in %s", wait)
-		time.Sleep(wait)
-		wait *= 2
+		wait := rc.min * (1 << uint(i))
 		if wait > rc.max {
 			wait = rc.max
 		}
+		log.Printf("[DEBUG] relay: consumer retrying in %s", wait)
+		time.Sleep(wait)
 	}
 	return nil
 }
@@ -256,7 +255,6 @@ func (rp *retryPublisher) Close() error {
 // Publish publishes a single message to the queue. If an error is encountered,
 // the broker automatically tries to replace the underlying channel.
 func (rp *retryPublisher) Publish(in interface{}) error {
-	wait := rp.min
 	for i := 0; ; i++ {
 		pub, err := rp.publisher(true)
 		if err != nil {
@@ -275,12 +273,12 @@ func (rp *retryPublisher) Publish(in interface{}) error {
 			log.Printf("[ERR] relay: publisher giving up after %d attempts", i)
 			return err
 		}
-		log.Printf("[DEBUG] relay: publisher retrying in %s", wait)
-		time.Sleep(wait)
-		wait *= 2
+		wait := rp.min * (1 << uint(i))
 		if wait > rp.max {
 			wait = rp.max
 		}
+		log.Printf("[DEBUG] relay: publisher retrying in %s", wait)
+		time.Sleep(wait)
 	}
 	return nil
 }
