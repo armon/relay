@@ -3,6 +3,7 @@ package relay
 import (
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/armon/relay/broker"
@@ -34,12 +35,24 @@ func (r *Relay) RetryBroker(attempts int, min, max time.Duration) *retryBroker {
 
 // Publisher returns a new retrying broker.Publisher.
 func (rb *retryBroker) Publisher(queue string) (broker.Publisher, error) {
-	return &retryPublisher{rb.broker, nil, queue, rb.attempts, rb.min, rb.max}, nil
+	return &retryPublisher{
+		broker:   rb.broker,
+		queue:    queue,
+		attempts: rb.attempts,
+		min:      rb.min,
+		max:      rb.max,
+	}, nil
 }
 
 // Consumer returns a new retrying broker.Consumer.
 func (rb *retryBroker) Consumer(queue string) (broker.Consumer, error) {
-	return &retryConsumer{rb.broker, nil, queue, rb.attempts, rb.min, rb.max}, nil
+	return &retryConsumer{
+		broker:   rb.broker,
+		queue:    queue,
+		attempts: rb.attempts,
+		min:      rb.min,
+		max:      rb.max,
+	}, nil
 }
 
 // Close closes the broker.
@@ -59,43 +72,68 @@ type retryConsumer struct {
 	attempts int
 	min      time.Duration
 	max      time.Duration
+	l        sync.RWMutex
 }
 
-// connect is used to connect the consumer to the relay queue.
-func (rc *retryConsumer) connect() error {
-	if rc.cons != nil {
-		return nil
+// consumer is used to connect the consumer to the relay queue.
+func (rc *retryConsumer) consumer(create bool) (broker.Consumer, error) {
+	// Check for an existing consumer
+	rc.l.RLock()
+	cons := rc.cons
+	rc.l.RUnlock()
+
+	if cons != nil || !create {
+		return cons, nil
 	}
 
+	// Make a new consumer
+	rc.l.Lock()
+	defer rc.l.Unlock()
+
 	cons, err := rc.broker.Consumer(rc.queue)
-	if err == nil {
-		rc.cons = cons
+	if err != nil {
+		return nil, err
 	}
-	return err
+	rc.cons = cons
+	return cons, nil
+}
+
+// discard is used to remove a known-bad consumer.
+func (rc *retryConsumer) discard(cons broker.Consumer) {
+	cons.Close()
+
+	rc.l.Lock()
+	defer rc.l.Unlock()
+	if cons == rc.cons {
+		rc.cons = nil
+	}
 }
 
 // Close closes the consumer.
 func (rc *retryConsumer) Close() error {
-	if rc.cons != nil {
-		return rc.cons.Close()
+	cons, err := rc.consumer(false)
+	if err != nil || cons == nil {
+		return err
 	}
-	return nil
+	return cons.Close()
 }
 
 // Ack marks message(s) as delivered.
 func (rc *retryConsumer) Ack() error {
-	if rc.cons != nil {
-		return rc.cons.Ack()
+	cons, err := rc.consumer(false)
+	if err != nil || cons == nil {
+		return err
 	}
-	return nil
+	return cons.Ack()
 }
 
 // Nack sends message(s) back to the queue.
 func (rc *retryConsumer) Nack() error {
-	if rc.cons != nil {
-		return rc.cons.Nack()
+	cons, err := rc.consumer(false)
+	if err != nil || cons == nil {
+		return err
 	}
-	return nil
+	return cons.Nack()
 }
 
 // ConsumeAck is used to consume with automatic ack.
@@ -122,12 +160,12 @@ func (rc *retryConsumer) Consume(out interface{}) error {
 func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) error {
 	wait := rc.min
 	for i := 0; ; i++ {
-		err := rc.connect()
+		cons, err := rc.consumer(true)
 		if err != nil {
 			goto RETRY
 		}
 
-		err = rc.cons.ConsumeTimeout(out, timeout)
+		err = cons.ConsumeTimeout(out, timeout)
 		if err == nil {
 			break
 		}
@@ -144,8 +182,7 @@ func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) 
 
 	RETRY:
 		log.Printf("[ERR] relay: consumer got error: %v", err)
-		rc.Close()
-		rc.cons = nil
+		rc.discard(cons)
 		if i == rc.attempts {
 			log.Printf("[ERR] relay: consumer giving up after %d attempts", i)
 			return err
@@ -170,27 +207,50 @@ type retryPublisher struct {
 	attempts int
 	min      time.Duration
 	max      time.Duration
+	l        sync.RWMutex
 }
 
-// connect connects the publisher using the standard broker interface.
-func (rp *retryPublisher) connect() error {
-	if rp.pub != nil {
-		return nil
+// publisher is used to connect the publisher to the relay queue.
+func (rp *retryPublisher) publisher(create bool) (broker.Publisher, error) {
+	// Check for an existing publisher
+	rp.l.RLock()
+	pub := rp.pub
+	rp.l.RUnlock()
+
+	if pub != nil || !create {
+		return pub, nil
 	}
 
+	// Make a new publisher
+	rp.l.Lock()
+	defer rp.l.Unlock()
+
 	pub, err := rp.broker.Publisher(rp.queue)
-	if err == nil {
-		rp.pub = pub
+	if err != nil {
+		return nil, err
 	}
-	return err
+	rp.pub = pub
+	return pub, nil
+}
+
+// discard is used to remove a known-bad publisher.
+func (rp *retryPublisher) discard(pub broker.Publisher) {
+	pub.Close()
+
+	rp.l.Lock()
+	defer rp.l.Unlock()
+	if pub == rp.pub {
+		rp.pub = nil
+	}
 }
 
 // Close closes the publisher.
 func (rp *retryPublisher) Close() error {
-	if rp.pub != nil {
-		return rp.pub.Close()
+	pub, err := rp.publisher(false)
+	if err != nil || pub == nil {
+		return err
 	}
-	return nil
+	return pub.Close()
 }
 
 // Publish publishes a single message to the queue. If an error is encountered,
@@ -198,20 +258,19 @@ func (rp *retryPublisher) Close() error {
 func (rp *retryPublisher) Publish(in interface{}) error {
 	wait := rp.min
 	for i := 0; ; i++ {
-		err := rp.connect()
+		pub, err := rp.publisher(true)
 		if err != nil {
 			goto RETRY
 		}
 
-		err = rp.pub.Publish(in)
+		err = pub.Publish(in)
 		if err == nil {
 			break
 		}
 
 	RETRY:
 		log.Printf("[ERR] relay: publisher got error: %v", err)
-		rp.Close()
-		rp.pub = nil
+		rp.discard(pub)
 		if i == rp.attempts {
 			log.Printf("[ERR] relay: publisher giving up after %d attempts", i)
 			return err
