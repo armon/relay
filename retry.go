@@ -2,7 +2,6 @@ package relay
 
 import (
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -100,6 +99,9 @@ func (rc *retryConsumer) consumer(create bool) (broker.Consumer, error) {
 
 // discard is used to remove a known-bad consumer.
 func (rc *retryConsumer) discard(cons broker.Consumer) {
+	if cons == nil {
+		return
+	}
 	cons.Close()
 
 	rc.l.Lock()
@@ -175,11 +177,6 @@ func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) 
 			return err
 		}
 
-		// Retries won't help decode errors, so just return.
-		if strings.Contains(err.Error(), "Failed to decode") {
-			return err
-		}
-
 	RETRY:
 		log.Printf("[ERR] relay: consumer got error: %v", err)
 		rc.discard(cons)
@@ -235,6 +232,9 @@ func (rp *retryPublisher) publisher(create bool) (broker.Publisher, error) {
 
 // discard is used to remove a known-bad publisher.
 func (rp *retryPublisher) discard(pub broker.Publisher) {
+	if pub == nil {
+		return
+	}
 	pub.Close()
 
 	rp.l.Lock()
