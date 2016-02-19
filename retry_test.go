@@ -1,10 +1,13 @@
 package relay
 
 import (
+	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/armon/relay/broker"
+	"github.com/hashicorp/go-uuid"
 )
 
 func TestRetryBroker_implements(t *testing.T) {
@@ -85,4 +88,90 @@ func TestRetryBroker_Publisher(t *testing.T) {
 	if tpub.queue != "test" {
 		t.Fatalf("bad queue: %q", tpub.queue)
 	}
+}
+
+func TestRetryBrokerInteg(t *testing.T) {
+	CheckInteg(t)
+
+	payloads := make([]int, 100)
+	for i := 0; i < 100; i++ {
+		payloads[i] = i + 1
+	}
+
+	// Create the config
+	conf := &Config{Addr: AMQPHost()}
+	r, err := New(conf)
+	if err != nil {
+		panic(err)
+	}
+
+	// Make a retrying broker
+	b := r.RetryBroker(10, 10*time.Millisecond, 10*time.Second)
+
+	// Make a random tests queue name
+	queueName, err := uuid.GenerateUUID()
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	// Get the publisher and consumer
+	pub, err := b.Publisher(queueName)
+	if err != nil {
+		panic(err)
+	}
+	cons, err := b.Consumer(queueName)
+	if err != nil {
+		panic(err)
+	}
+
+	// Periodically close the connection
+	go func() {
+		for {
+			time.Sleep(randomStagger(time.Second))
+			if r.pubConn != nil {
+				r.pubConn.Close()
+			}
+			if r.consConn != nil {
+				r.consConn.Close()
+			}
+		}
+	}()
+
+	// Set a deadline for the test
+	time.AfterFunc(time.Minute, func() { t.Fatalf("timed out") })
+
+	// Pubish all of the messages
+	for _, payload := range payloads {
+		if err := pub.Publish(payload); err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		// Allow time for the connection to unexpectedly close
+		// a couple of times.
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Consume the messages in a loop until we get them all
+	var result []int
+	for len(result) < 100 {
+		var msg int
+		if err = cons.ConsumeAck(&msg); err == nil {
+			result = append(result, msg)
+		}
+
+		// Allow time for the connection to unexpectedly close
+		// a couple of times.
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Check that the messages arrived in the same order they were submitted
+	if !reflect.DeepEqual(payloads, result) {
+		t.Fatalf("\nexpect: %v\nactual: %v", payloads, result)
+	}
+}
+
+// randomStagger returns a randomized duration +/- 25% of the input.
+func randomStagger(interval time.Duration) time.Duration {
+	stagger := time.Duration(rand.Int63()) % (interval / 2)
+	return 3*(interval/4) + stagger
 }

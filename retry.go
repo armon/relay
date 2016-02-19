@@ -126,7 +126,12 @@ func (rc *retryConsumer) Ack() error {
 	if err != nil || cons == nil {
 		return err
 	}
-	return cons.Ack()
+	err = cons.Ack()
+	if err != nil {
+		log.Printf("[ERR] relay: consumer failed ack: %v", err)
+		rc.discard(cons)
+	}
+	return err
 }
 
 // Nack sends message(s) back to the queue.
@@ -135,7 +140,12 @@ func (rc *retryConsumer) Nack() error {
 	if err != nil || cons == nil {
 		return err
 	}
-	return cons.Nack()
+	err = cons.Nack()
+	if err != nil {
+		log.Printf("[ERR] relay: consumer failed nack: %v", err)
+		rc.discard(cons)
+	}
+	return err
 }
 
 // ConsumeAck is used to consume with automatic ack.
@@ -143,10 +153,7 @@ func (rc *retryConsumer) ConsumeAck(out interface{}) error {
 	if err := rc.Consume(out); err != nil {
 		return err
 	}
-	if err := rc.Ack(); err != nil {
-		return err
-	}
-	return nil
+	return rc.Ack()
 }
 
 // Consume consumes a single message from the queue.
