@@ -97,7 +97,7 @@ func (rc *retryConsumer) consumer(create bool) (broker.Consumer, error) {
 	return cons, nil
 }
 
-// discard is used to remove a known-bad consumer.
+// discard is used to remove a broken consumer.
 func (rc *retryConsumer) discard(cons broker.Consumer) {
 	if cons == nil {
 		return
@@ -148,7 +148,12 @@ func (rc *retryConsumer) Nack() error {
 	return err
 }
 
-// ConsumeAck is used to consume with automatic ack.
+// ConsumeAck is used to consume with automatic ack. The consume operation
+// is able to be retried, but if a message is consumed and the acknowledgement
+// fails, the broker will re-deliver the message. Because of this, it is
+// critical that the returned error is checked, as it is possible that both
+// the output is written and an error is encountered if we see connection
+// loss between Consume() and Ack().
 func (rc *retryConsumer) ConsumeAck(out interface{}) error {
 	if err := rc.Consume(out); err != nil {
 		return err
@@ -236,7 +241,7 @@ func (rp *retryPublisher) publisher(create bool) (broker.Publisher, error) {
 	return pub, nil
 }
 
-// discard is used to remove a known-bad publisher.
+// discard is used to remove a broken publisher.
 func (rp *retryPublisher) discard(pub broker.Publisher) {
 	if pub == nil {
 		return
@@ -260,7 +265,10 @@ func (rp *retryPublisher) Close() error {
 }
 
 // Publish publishes a single message to the queue. If an error is encountered,
-// the broker automatically tries to replace the underlying channel.
+// the broker automatically tries to replace the underlying channel and submits
+// the message again. If publisher confirms are enabled, this may result in the
+// same message being published multiple times. If this is not desirable, the
+// config struct allows disabling publisher confirms, which may drop messages.
 func (rp *retryPublisher) Publish(in interface{}) error {
 	for i := 0; ; i++ {
 		pub, err := rp.publisher(true)

@@ -148,20 +148,31 @@ func TestRetryBrokerInteg(t *testing.T) {
 
 		// Allow time for the connection to unexpectedly close
 		// a couple of times.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(randomStagger(100 * time.Millisecond))
 	}
 
 	// Consume the messages in a loop until we get them all
 	var result []int
+	seen := make(map[int]struct{}, 100) // Used for deduplication
 	for len(result) < 100 {
 		var msg int
 		if err = cons.ConsumeAck(&msg); err == nil {
+			// Check if we have already seen the message. There are multiple
+			// ways that messages may become duplicated in the face of network
+			// errors. The publisher may have written the message multiple
+			// times if publisher confirms failed, and the client may consume
+			// the same message multiple times if sending an ack fails.
+			if _, ok := seen[msg]; ok {
+				continue
+			}
+			seen[msg] = struct{}{}
+
 			result = append(result, msg)
 		}
 
 		// Allow time for the connection to unexpectedly close
 		// a couple of times.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(randomStagger(100 * time.Millisecond))
 	}
 
 	// Check that the messages arrived in the same order they were submitted
@@ -174,4 +185,8 @@ func TestRetryBrokerInteg(t *testing.T) {
 func randomStagger(interval time.Duration) time.Duration {
 	stagger := time.Duration(rand.Int63()) % (interval / 2)
 	return 3*(interval/4) + stagger
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }
