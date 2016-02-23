@@ -1,11 +1,21 @@
 package relay
 
 import (
+	"errors"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/armon/relay/broker"
+)
+
+var (
+	// Error returned when an invalid number of attempts is specified. Protects
+	// overflows of these values.
+	errAttemptsRange = errors.New("Attempts must be between 1 and 32")
+
+	// Error returned if a zero value is given for min/max wait time.
+	errWaitRange = errors.New("Min/Max wait times must be positive")
 )
 
 // retryBroker implements a resilient AMQP broker which automatically replaces
@@ -28,8 +38,14 @@ type retryBroker struct {
 }
 
 // RetryBroker returns a new retrying broker with the given settings.
-func (r *Relay) RetryBroker(attempts int, min, max time.Duration) *retryBroker {
-	return &retryBroker{&relayBroker{r}, attempts, min, max}
+func (r *Relay) RetryBroker(attempts int, min, max time.Duration) (*retryBroker, error) {
+	if attempts < 1 || attempts > 32 {
+		return nil, errAttemptsRange
+	}
+	if min == 0 || max == 0 {
+		return nil, errWaitRange
+	}
+	return &retryBroker{&relayBroker{r}, attempts, min, max}, nil
 }
 
 // Publisher returns a new retrying broker.Publisher.
@@ -206,7 +222,8 @@ func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) 
 			return TimedOut
 		}
 
-		wait := rc.min * (1 << uint(i))
+		// Calculate the next wait period
+		wait := rc.min * time.Duration(int64(1)<<uint(i))
 		if wait > rc.max {
 			wait = rc.max
 		}

@@ -22,7 +22,10 @@ func TestRetryBroker(t *testing.T) {
 	}
 
 	// Make a retry broker
-	broker := r.RetryBroker(13, 100*time.Millisecond, 500*time.Millisecond)
+	broker, err := r.RetryBroker(13, 100*time.Millisecond, 500*time.Millisecond)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 	if broker.attempts != 13 {
 		t.Fatalf("bad attempts: %d", broker.attempts)
 	}
@@ -34,13 +37,43 @@ func TestRetryBroker(t *testing.T) {
 	}
 }
 
+func TestRetryBroker_BadConfig(t *testing.T) {
+	r, err := New(&Config{})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	// Check that we validate the number of attempts
+	_, err = r.RetryBroker(0, time.Second, time.Second)
+	if err != errAttemptsRange {
+		t.Fatalf("expect %v, got: %v", errAttemptsRange, err)
+	}
+	_, err = r.RetryBroker(33, time.Second, time.Second)
+	if err != errAttemptsRange {
+		t.Fatalf("expect %v, got: %v", errAttemptsRange, err)
+	}
+
+	// Check that we validate the min/max wait periods
+	_, err = r.RetryBroker(16, 0, time.Second)
+	if err != errWaitRange {
+		t.Fatalf("expect %v, got: %v", errWaitRange, err)
+	}
+	_, err = r.RetryBroker(16, time.Second, 0)
+	if err != errWaitRange {
+		t.Fatalf("expect %v, got: %v", errWaitRange, err)
+	}
+}
+
 func TestRetryBroker_Consumer(t *testing.T) {
 	// Make the broker
 	r, err := New(&Config{})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	broker := r.RetryBroker(5, 100*time.Millisecond, 500*time.Millisecond)
+	broker, err := r.RetryBroker(5, 100*time.Millisecond, 500*time.Millisecond)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 
 	// Make the consumer
 	cons, err := broker.Consumer("test")
@@ -68,7 +101,10 @@ func TestRetryBroker_Publisher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	broker := r.RetryBroker(5, 100*time.Millisecond, 500*time.Millisecond)
+	broker, err := r.RetryBroker(5, 100*time.Millisecond, 500*time.Millisecond)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 
 	// Make the publisher
 	pub, err := broker.Publisher("test")
@@ -110,7 +146,10 @@ func TestRetryBrokerInteg(t *testing.T) {
 	}
 
 	// Make a retrying broker
-	b := r.RetryBroker(10, 10*time.Millisecond, 10*time.Second)
+	b, err := r.RetryBroker(10, 10*time.Millisecond, 10*time.Second)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
 
 	// Make a random tests queue name
 	queueName, err := uuid.GenerateUUID()
