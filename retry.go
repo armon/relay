@@ -167,11 +167,14 @@ func (rc *retryConsumer) Consume(out interface{}) error {
 }
 
 // ConsumeTimeout consumes a single message from the queue with an upper bound
-// on the time spent waiting. This behaves slightly different in the retry
-// broker, as we may encounter errors getting a valid consumer. In this case,
-// the timeout may actually be longer than specified to allow reconnection
-// attempts to take place.
+// on the time spent waiting.
 func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) error {
+	// Record the deadline so we can honor the timeout
+	var deadline time.Time
+	if timeout >= 0 {
+		deadline = time.Now().Add(timeout)
+	}
+
 	for i := 0; ; i++ {
 		cons, err := rc.consumer(true)
 		if err != nil {
@@ -195,10 +198,26 @@ func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) 
 			log.Printf("[ERR] relay: consumer giving up after %d attempts", i)
 			return err
 		}
+
+		// Check if we are already passed the deadline
+		now := time.Now()
+		if !deadline.IsZero() && now.After(deadline) {
+			log.Printf("[DEBUG] relay: consumer reached deadline")
+			return TimedOut
+		}
+
 		wait := rc.min * (1 << uint(i))
 		if wait > rc.max {
 			wait = rc.max
 		}
+
+		// Ensure we don't wait past the deadline. Adjust the timeout
+		// so that the next call to consume will return earlier.
+		if !deadline.IsZero() && now.Add(wait).After(deadline) {
+			wait = deadline.Sub(now)
+		}
+		timeout -= wait
+
 		log.Printf("[DEBUG] relay: consumer retrying in %s", wait)
 		time.Sleep(wait)
 	}

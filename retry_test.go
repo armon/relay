@@ -93,6 +93,10 @@ func TestRetryBroker_Publisher(t *testing.T) {
 func TestRetryBrokerInteg(t *testing.T) {
 	CheckInteg(t)
 
+	// Seed the RNG so we get unpredictable pauses between our emulated
+	// connection resets.
+	rand.Seed(time.Now().UnixNano())
+
 	payloads := make([]int, 100)
 	for i := 0; i < 100; i++ {
 		payloads[i] = i + 1
@@ -185,8 +189,4 @@ func TestRetryBrokerInteg(t *testing.T) {
 func randomStagger(interval time.Duration) time.Duration {
 	stagger := time.Duration(rand.Int63()) % (interval / 2)
 	return 3*(interval/4) + stagger
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
