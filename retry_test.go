@@ -157,31 +157,44 @@ func TestRetryBrokerInteg(t *testing.T) {
 
 	// Consume the messages in a loop until we get them all
 	var result []int
-	seen := make(map[int]struct{}, 100) // Used for deduplication
+	seen := make(map[int]struct{}, 100) // used for deduplication
+
 	for len(result) < 100 {
 		var msg int
-		if err = cons.ConsumeAck(&msg); err == nil {
-			// Check if we have already seen the message. There are multiple
-			// ways that messages may become duplicated in the face of network
-			// errors. The publisher may have written the message multiple
-			// times if publisher confirms failed, and the client may consume
-			// the same message multiple times if sending an ack fails.
-			if _, ok := seen[msg]; ok {
-				continue
-			}
-			seen[msg] = struct{}{}
-
-			result = append(result, msg)
+		if err := cons.Consume(&msg); err != nil {
+			t.Fatalf("err: %v", err)
 		}
 
-		// Allow time for the connection to unexpectedly close
-		// a couple of times.
+		// If we fail to ack the message, it will end up being re-delivered
+		// by the server. We record the consumed message only if we are able
+		// to send the acknowledgement. We may also get legitimate dupes
+		// here if a publisher confirmation failed, in which case there are
+		// actually multiple copies of the same message in the queue.
+		if err := cons.Ack(); err != nil {
+			continue
+		}
+
+		if _, ok := seen[msg]; ok {
+			continue // duplicate message
+		}
+		seen[msg] = struct{}{}
+
+		result = append(result, msg)
 		time.Sleep(randomStagger(100 * time.Millisecond))
 	}
 
 	// Check that the messages arrived in the same order they were submitted
 	if !reflect.DeepEqual(payloads, result) {
 		t.Fatalf("\nexpect: %v\nactual: %v", payloads, result)
+	}
+
+	// Try consuming more, and ensure we get a deadline error. The test
+	// timeout will kick in if we don't see one.
+	for {
+		var msg int
+		if err := cons.ConsumeTimeout(&msg, time.Second); err == TimedOut {
+			return
+		}
 	}
 }
 
