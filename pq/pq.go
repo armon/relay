@@ -116,9 +116,6 @@ func (q *PriorityQueue) consumer(pri int) (broker.Consumer, error) {
 
 	cons, err := q.source.Consumer(queueName(q.prefix, pri))
 	if err != nil {
-		if cons != nil {
-			cons.Close()
-		}
 		return nil, err
 	}
 
