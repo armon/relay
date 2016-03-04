@@ -18,7 +18,6 @@ type Publisher struct {
 	channel     *amqp.Channel
 	contentType string
 	mode        uint8
-	buf         bytes.Buffer
 	ackCh       chan uint64
 	nackCh      chan uint64
 	errCh       chan *amqp.Error
@@ -33,8 +32,7 @@ func (p *Publisher) Publish(in interface{}) error {
 
 	// Encode the message
 	conf := p.conf
-	buf := &p.buf
-	buf.Reset()
+	buf := new(bytes.Buffer)
 	if err := conf.Serializer.RelayEncode(buf, in); err != nil {
 		return fmt.Errorf("Failed to encode message! Got: %s", err)
 	}
