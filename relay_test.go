@@ -2,11 +2,15 @@ package relay
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/go-uuid"
 )
 
 func CheckInteg(t *testing.T) {
@@ -849,5 +853,71 @@ func TestExchangeType_Fanout(t *testing.T) {
 	case <-doneCh:
 	case <-time.After(time.Second):
 		t.Fatalf("should fanout")
+	}
+}
+
+func TestPublisherThreadSafety(t *testing.T) {
+	CheckInteg(t)
+
+	// Make a random tests queue name
+	queueName, err := uuid.GenerateUUID()
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	rand.Seed(time.Now().UnixNano())
+
+	conf := Config{Addr: AMQPHost()}
+	r, err := New(&conf)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer r.Close()
+
+	// Get a publisher
+	pub, err := r.Publisher(queueName)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+	defer pub.Close()
+
+	// Get a consumer
+	cons, err := r.Consumer(queueName)
+	if err != nil {
+		t.Fatalf("unexpected err %s", err)
+	}
+
+	// Queue up a bunch of publishers who will publish messages very near
+	// to the same time. When the Publish() calls go in parallel, this would
+	// usually cause unpredictable behavior of the shared bytes.Buffer used
+	// previously per-consumer, due to the automatic resizing of the underlying
+	// byte slice. Instead we will use a buffer per-publish. This will result
+	// in more allocations, but allows publishers to run in parallel without
+	// blocking eachother, and without stepping on the buffer size.
+	startCh := make(chan struct{})
+	for i := 0; i < 1000; i++ {
+		go func() {
+			<-startCh
+			msg := strings.Repeat("x", rand.Intn(1024))
+			err = pub.Publish(msg)
+			if err != nil {
+				t.Fatalf("unexpected err %s", err)
+			}
+		}()
+	}
+
+	// Allow goroutines to queue up
+	time.Sleep(time.Second)
+	close(startCh)
+
+	// Try to get the messages. If we got a short buffer on any of the messages,
+	// this will result in a decoding error due to incomplete JSON.
+	for i := 0; i < 1000; i++ {
+		var in string
+		err = cons.ConsumeTimeout(&in, 100*time.Millisecond)
+		if err != nil {
+			t.Fatalf("unexpected err %s", err)
+		}
+		cons.Ack()
 	}
 }
