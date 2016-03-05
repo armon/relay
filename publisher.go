@@ -6,6 +6,7 @@ import (
 	"github.com/streadway/amqp"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,8 @@ type Publisher struct {
 	ackCh       chan uint64
 	nackCh      chan uint64
 	errCh       chan *amqp.Error
+	buf         bytes.Buffer
+	l           sync.Mutex
 }
 
 // Publish will send the message to the server to be consumed
@@ -30,9 +33,13 @@ func (p *Publisher) Publish(in interface{}) error {
 		return ChannelClosed
 	}
 
+	p.l.Lock()
+	defer p.l.Unlock()
+
 	// Encode the message
 	conf := p.conf
-	buf := new(bytes.Buffer)
+	buf := &p.buf
+	buf.Reset()
 	if err := conf.Serializer.RelayEncode(buf, in); err != nil {
 		return fmt.Errorf("Failed to encode message! Got: %s", err)
 	}

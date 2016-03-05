@@ -886,6 +886,7 @@ func TestPublisherThreadSafety(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected err %s", err)
 	}
+	defer cons.Close()
 
 	// Queue up a bunch of publishers who will publish messages very near
 	// to the same time. When the Publish() calls go in parallel, this would
@@ -894,9 +895,12 @@ func TestPublisherThreadSafety(t *testing.T) {
 	// byte slice. Instead we will use a buffer per-publish. This will result
 	// in more allocations, but allows publishers to run in parallel without
 	// blocking eachother, and without stepping on the buffer size.
+	var wg sync.WaitGroup
+	wg.Add(1000)
 	startCh := make(chan struct{})
 	for i := 0; i < 1000; i++ {
 		go func() {
+			defer wg.Done()
 			<-startCh
 			msg := strings.Repeat("x", rand.Intn(1024))
 			err = pub.Publish(msg)
@@ -906,9 +910,10 @@ func TestPublisherThreadSafety(t *testing.T) {
 		}()
 	}
 
-	// Allow goroutines to queue up
-	time.Sleep(time.Second)
+	// Start the publishers. The WaitGroup ensures that we received all of the
+	// publisher confirmations from all of the threads.
 	close(startCh)
+	wg.Wait()
 
 	// Try to get the messages. If we got a short buffer on any of the messages,
 	// this will result in a decoding error due to incomplete JSON.
