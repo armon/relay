@@ -118,7 +118,7 @@ func (rc *retryConsumer) discard(cons broker.Consumer) {
 	if cons == nil {
 		return
 	}
-	cons.Close()
+	defer cons.Close()
 
 	rc.l.Lock()
 	defer rc.l.Unlock()
@@ -282,7 +282,7 @@ func (rp *retryPublisher) discard(pub broker.Publisher) {
 	if pub == nil {
 		return
 	}
-	pub.Close()
+	defer pub.Close()
 
 	rp.l.Lock()
 	defer rp.l.Unlock()
