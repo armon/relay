@@ -28,13 +28,13 @@ type Publisher struct {
 
 // Publish will send the message to the server to be consumed
 func (p *Publisher) Publish(in interface{}) error {
+	p.l.Lock()
+	defer p.l.Unlock()
+
 	// Check for close
 	if p.channel == nil {
 		return ChannelClosed
 	}
-
-	p.l.Lock()
-	defer p.l.Unlock()
 
 	// Encode the message
 	conf := p.conf
@@ -90,6 +90,9 @@ func (p *Publisher) Publish(in interface{}) error {
 
 // Close will shutdown the publisher
 func (p *Publisher) Close() error {
+	p.l.Lock()
+	defer p.l.Unlock()
+
 	// Make sure close is idempotent
 	if p.channel == nil {
 		return nil
