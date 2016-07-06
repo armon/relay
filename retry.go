@@ -115,12 +115,12 @@ func (rc *retryConsumer) consumer(create bool) (broker.Consumer, error) {
 
 // discard is used to remove a broken consumer.
 func (rc *retryConsumer) discard(cons broker.Consumer) {
+	rc.l.Lock()
+	defer rc.l.Unlock()
+
 	if cons == nil {
 		return
 	}
-
-	rc.l.Lock()
-	defer rc.l.Unlock()
 
 	cons.Close()
 	if cons == rc.cons {
@@ -280,12 +280,12 @@ func (rp *retryPublisher) publisher(create bool) (broker.Publisher, error) {
 
 // discard is used to remove a broken publisher.
 func (rp *retryPublisher) discard(pub broker.Publisher) {
+	rp.l.Lock()
+	defer rp.l.Unlock()
+
 	if pub == nil {
 		return
 	}
-
-	rp.l.Lock()
-	defer rp.l.Unlock()
 
 	pub.Close()
 	if pub == rp.pub {
