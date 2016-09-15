@@ -82,7 +82,7 @@ func (p *Publisher) Publish(in interface{}) error {
 			}
 			log.Printf("[ERR] Publisher got error: (Code %d Server: %v Recoverable: %v) %s",
 				err.Code, err.Server, err.Recover, err.Reason)
-			return fmt.Errorf("Failed to publish to '%s'! Got: %s", err.Error())
+			return fmt.Errorf("Failed to publish to '%s'! Got: %s", p.queue, err.Error())
 		}
 	}
 	return nil
