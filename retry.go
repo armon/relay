@@ -209,7 +209,7 @@ func (rc *retryConsumer) ConsumeTimeout(out interface{}, timeout time.Duration) 
 		}
 
 	RETRY:
-		log.Printf("[ERR] relay: consumer got error: %v", err)
+		log.Printf("[WARN] relay: consumer got error: %v", err)
 		rc.discard(cons)
 		if i == rc.attempts {
 			log.Printf("[ERR] relay: consumer giving up after %d attempts", i)
@@ -320,7 +320,7 @@ func (rp *retryPublisher) Publish(in interface{}) error {
 		}
 
 	RETRY:
-		log.Printf("[ERR] relay: publisher got error: %v", err)
+		log.Printf("[WARN] relay: publisher got error: %v", err)
 		rp.discard(pub)
 		if i == rp.attempts {
 			log.Printf("[ERR] relay: publisher giving up after %d attempts", i)
